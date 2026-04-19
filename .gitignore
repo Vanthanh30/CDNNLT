@@ -1,0 +1,14 @@
+# Bỏ qua dữ liệu của Database
+data/
+
+# Bỏ qua rác của Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+venv/
+env/
+
+# Bỏ qua file rác của Hệ điều hành
+.DS_Store
+Thumbs.db

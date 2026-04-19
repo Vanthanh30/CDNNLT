@@ -1,0 +1,156 @@
+.right-panel-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.section-header h3,
+.trends-section h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.updated-time {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+}
+
+/* Update List Styles */
+.update-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.update-item {
+    display: flex;
+    gap: 12px;
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-top: 5px;
+    flex-shrink: 0;
+}
+
+.dot-red {
+    background-color: var(--accent-red);
+    box-shadow: 0 0 8px var(--accent-red);
+}
+
+.dot-green {
+    background-color: #00ff88;
+    box-shadow: 0 0 8px #00ff88;
+}
+
+.dot-blue {
+    background-color: #4a90e2;
+    box-shadow: 0 0 8px #4a90e2;
+}
+
+.update-content h4 {
+    margin: 0 0 5px 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.update-content p {
+    margin: 0 0 8px 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.timestamp {
+    font-size: 0.7rem;
+    color: #4a5568;
+}
+
+.view-log-btn {
+    width: 100%;
+    margin-top: 25px;
+    padding: 12px;
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.view-log-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.divider {
+    border: 0;
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 20px 0;
+}
+
+/* Mini Bar Charts CSS */
+.charts-container {
+    display: flex;
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.mini-chart {
+    flex: 1;
+    background-color: rgba(0, 0, 0, 0.2);
+    padding: 10px;
+    border-radius: 8px;
+}
+
+.chart-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 40px;
+}
+
+.bars div {
+    flex: 1;
+    border-radius: 2px 2px 0 0;
+    opacity: 0.7;
+}
+
+.bars-red div {
+    background-color: var(--accent-red);
+}
+
+.bars-red div:last-child {
+    opacity: 1;
+}
+
+/* Highlight the last bar */
+
+.bars-cyan div {
+    background-color: var(--accent-cyan);
+}
+
+.bars-cyan div:last-child {
+    opacity: 1;
+}

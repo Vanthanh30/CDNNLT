@@ -1,0 +1,57 @@
+.map-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: var(--bg-panel);
+    /* Đảm bảo nền wrapper đồng bộ */
+}
+
+.map-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 15px;
+}
+
+.map-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.map-subtitle {
+    margin: 5px 0 0 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.status-badge {
+    background: rgba(0, 210, 255, 0.1);
+    color: var(--accent-cyan);
+    border: 1px solid rgba(0, 210, 255, 0.3);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: bold;
+}
+
+.leaflet-map {
+    flex: 1;
+    border-radius: 12px;
+    background-color: #050a14 !important;
+    /* Trùng với --bg-dark */
+    border: 1px solid var(--border-color);
+}
+
+/* Khử hoàn toàn viền trắng của các mảnh tile bản đồ */
+.leaflet-container {
+    background: #050a14 !important;
+}
+
+/* Tùy chỉnh Popup để hợp tông màu xanh đen */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+    background-color: var(--bg-panel) !important;
+    color: var(--text-main) !important;
+    border: 1px solid var(--border-color);
+}

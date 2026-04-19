@@ -1,0 +1,38 @@
+.stat-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    /* Kế thừa class .panel từ Dashboard.css cho background/border */
+}
+
+.stat-title {
+    margin: 0 0 10px 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.stat-subvalue {
+    font-size: 0.75rem;
+}
+
+/* Các class màu sắc cho text nhỏ bên dưới */
+.text-cyan {
+    color: var(--accent-cyan);
+}
+
+.text-red {
+    color: var(--accent-red);
+}
+
+.text-muted {
+    color: var(--text-muted);
+}

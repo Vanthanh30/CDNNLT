@@ -1,0 +1,44 @@
+version: "3.8"
+
+services:
+  # Database dùng chung
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: "disease_db"
+      MYSQL_ROOT_PASSWORD: "password"
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./data/db:/var/lib/mysql
+
+  # BE 1: Cào dữ liệu
+  crawler:
+    build: ./backend/crawler-service
+    depends_on:
+      - db
+
+  # BE 2: Xử lý AI/NLP
+  processor:
+    build: ./backend/processor-service
+    depends_on:
+      - db
+
+  # BE 3: API chính & Chatbot
+  api:
+    build: ./backend/api-gateway
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+  # Frontend React
+  frontend:
+    build: ./frontend
+    ports:
+      - "5174:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - api
