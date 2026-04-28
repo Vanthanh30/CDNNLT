@@ -10,9 +10,9 @@ def get_connection(retries=5, delay=2):
     for attempt in range(retries):
         try:
             conn = mysql.connector.connect(
-                host="db",
+                host="localhost",
                 user="root",
-                password="password",
+                password="",
                 database="disease_db"
             )
             return conn
@@ -87,5 +87,42 @@ def get_all_processed_articles():
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT * FROM articles WHERE keywords IS NOT NULL ORDER BY created_at DESC")
     rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def filter_articles(keyword=None, from_date=None, to_date=None, status=None, limit=50):
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor(dictionary=True)
+
+    query = "SELECT * FROM articles WHERE 1=1"
+    params = []
+
+    if keyword:
+        query += " AND (title LIKE %s OR content LIKE %s OR keywords LIKE %s)"
+        like_keyword = f"%{keyword}%"
+        params.extend([like_keyword, like_keyword, like_keyword])
+
+    if from_date:
+        query += " AND DATE(created_at) >= %s"
+        params.append(from_date)
+
+    if to_date:
+        query += " AND DATE(created_at) <= %s"
+        params.append(to_date)
+
+    if status == "processed":
+        query += " AND keywords IS NOT NULL"
+    elif status == "unprocessed":
+        query += " AND keywords IS NULL"
+
+    query += " ORDER BY created_at DESC LIMIT %s"
+    params.append(int(limit))
+
+    cursor.execute(query, tuple(params))
+    rows = cursor.fetchall()
+
     conn.close()
     return rows

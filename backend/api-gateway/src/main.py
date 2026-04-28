@@ -1,6 +1,7 @@
+from typing import Optional
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import database
+from src import database
 
 app = FastAPI()
 
@@ -56,3 +57,19 @@ def trend(keyword: str):
     results = cursor.fetchall()
     conn.close()
     return results
+
+@app.get("/api/articles/filter")
+def filter_articles(
+    keyword: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    status: Optional[str] = "all",
+    limit: int = 50
+):
+    return database.filter_articles(
+        keyword=keyword,
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        limit=limit
+    )
