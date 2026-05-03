@@ -5,11 +5,11 @@ import mysql.connector
 from mysql.connector import Error
 
 
-DB_HOST = "localhost"
-DB_PORT = 3306
-DB_USER = "root"
+DB_HOST     = "localhost"
+DB_PORT     = 3306
+DB_USER     = "root"
 DB_PASSWORD = ""
-DB_NAME = "disease_management"
+DB_NAME     = "disease_management"
 
 
 def generate_id():
@@ -460,3 +460,95 @@ def filter_articles(
     conn.close()
 
     return rows
+
+def search_chatbot_context(question: str, limit: int = 5):
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor(dictionary=True)
+
+    like = f"%{question}%"
+
+    query = """
+        SELECT
+            r.title,
+            r.url,
+            a.summary,
+            a.content_clean,
+            d.name AS disease_name,
+            rg.name AS location,
+            de.event_date,
+            de.risk_level,
+            s.cases_infected,
+            s.cases_dead,
+            s.cases_recovered
+        FROM ARTICLE a
+        JOIN RAW_ARTICLE r ON a.raw_article_id = r.id
+        LEFT JOIN DISEASE_EVENT de ON de.article_id = a.id
+        LEFT JOIN DISEASE d ON de.disease_id = d.id
+        LEFT JOIN REGION rg ON de.region_id = rg.id
+        LEFT JOIN STATIC s ON s.event_id = de.id
+        WHERE
+            r.title LIKE %s
+            OR r.content LIKE %s
+            OR a.summary LIKE %s
+            OR a.content_clean LIKE %s
+            OR d.name LIKE %s
+            OR rg.name LIKE %s
+        ORDER BY a.processed_at DESC
+        LIMIT %s
+    """
+
+    cursor.execute(query, (like, like, like, like, like, like, limit))
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return rows
+
+
+def generate_chatbot_answer(question: str):
+    rows = search_chatbot_context(question, limit=5)
+
+    if not rows:
+        return {
+            "answer": "Hiện tại hệ thống chưa tìm thấy dữ liệu phù hợp trong cơ sở dữ liệu.",
+            "sources": []
+        }
+
+    answer_parts = []
+    sources = []
+
+    answer_parts.append("Dựa trên dữ liệu dịch bệnh trong hệ thống, tôi tìm thấy các thông tin liên quan:")
+
+    for index, row in enumerate(rows, start=1):
+        disease = row.get("disease_name") or "Không xác định"
+        location = row.get("location") or "Không xác định"
+        risk = row.get("risk_level") or "Không xác định"
+        infected = row.get("cases_infected") or 0
+        dead = row.get("cases_dead") or 0
+        recovered = row.get("cases_recovered") or 0
+        title = row.get("title") or "Không có tiêu đề"
+
+        answer_parts.append(
+            f"{index}. {title}\n"
+            f"- Dịch bệnh: {disease}\n"
+            f"- Khu vực: {location}\n"
+            f"- Mức độ rủi ro: {risk}\n"
+            f"- Số ca nhiễm: {infected}, tử vong: {dead}, hồi phục: {recovered}"
+        )
+
+        sources.append({
+            "title": title,
+            "url": row.get("url"),
+            "disease_name": disease,
+            "location": location,
+            "risk_level": risk
+        })
+
+    return {
+        "answer": "\n\n".join(answer_parts),
+        "sources": sources
+    }

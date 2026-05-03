@@ -1,4 +1,5 @@
 from typing import Optional
+from pydantic import BaseModel
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src import database
@@ -12,6 +13,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class ChatRequest(BaseModel):
+    question: str
 
 
 @app.on_event("startup")
@@ -53,3 +58,8 @@ def filter_articles(
         risk_level=risk_level,
         limit=limit
     )
+
+
+@app.post("/api/chat")
+def chat(request: ChatRequest):
+    return database.generate_chatbot_answer(request.question)
