@@ -1,43 +1,103 @@
-import React, { useState, useEffect, useRef } from "react";
-import { MoreVertical, ChevronDown, Zap, X, Send, Bot, Tag } from "lucide-react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { MoreVertical, ChevronDown, X, Send, Bot, Tag, TrendingUp, FileText, AlertTriangle, Activity } from "lucide-react";
 import {
   BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend,
+  ResponsiveContainer, Legend, Area, AreaChart,
 } from "recharts";
 import "./AnalyticsContent.css";
 
 const API_BASE_URL = "http://localhost:8000";
-const OPENAI_KEY = ""; // Bạn cần set OpenAI key ở đây nếu muốn dùng AI
-const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#a855f7"];
+
+const PALETTE = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#f97316"];
+
+// ===================== HELPERS =====================
+const fmtDate = (d) => {
+  if (!d) return "";
+  const dt = new Date(d);
+  return `${String(dt.getDate()).padStart(2, "0")}/${String(dt.getMonth() + 1).padStart(2, "0")}`;
+};
+
+const fmtDateFull = (d) => {
+  if (!d) return "";
+  const dt = new Date(d);
+  return `${String(dt.getDate()).padStart(2, "0")}/${String(dt.getMonth() + 1).padStart(2, "0")}/${dt.getFullYear()}`;
+};
+
+// Parse date string từ processed_at / crawled_at
+const parseDate = (raw) => {
+  if (!raw) return null;
+  const d = new Date(raw);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+// Lấy cutoff date theo timeRange (tính từ bây giờ)
+const getCutoff = (days) => {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  if (days === 1) {
+    return new Date(Date.now() - 24 * 60 * 60 * 1000);
+  }
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+};
+
+// ===================== CUSTOM TOOLTIP =====================
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="ac-tooltip">
+      <p className="ac-tooltip-label">{fmtDateFull(label)}</p>
+      {payload.map((p, i) => (
+        <p key={i} style={{ color: p.color }} className="ac-tooltip-item">
+          <span className="ac-tooltip-dot" style={{ background: p.color }} />
+          {p.name}: <strong>{p.value}</strong>
+        </p>
+      ))}
+    </div>
+  );
+};
+
+// ===================== STAT CARD =====================
+const StatCard = ({ icon: Icon, label, value, sub, color }) => (
+  <div className="ac-stat-card">
+    <div className="ac-stat-icon" style={{ background: `${color}18`, color }}>
+      <Icon size={18} />
+    </div>
+    <div className="ac-stat-body">
+      <p className="ac-stat-label">{label}</p>
+      <p className="ac-stat-value">{value}</p>
+      {sub && <p className="ac-stat-sub">{sub}</p>}
+    </div>
+  </div>
+);
 
 // ===================== KEYWORDS MODAL =====================
 const KeywordsModal = ({ keywords, onClose }) => {
-  const max = Math.max(...keywords.map(k => k.count), 1);
+  const max = keywords[0]?.count || 1;
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3><Tag size={16} /> Tất cả Từ khóa ({keywords.length})</h3>
-          <button className="modal-close" onClick={onClose}><X size={18} /></button>
+    <div className="ac-modal-overlay" onClick={onClose}>
+      <div className="ac-modal-box" onClick={(e) => e.stopPropagation()}>
+        <div className="ac-modal-header">
+          <h3><Tag size={15} style={{ marginRight: 8 }} />Tất cả loại bệnh ({keywords.length})</h3>
+          <button className="ac-icon-btn" onClick={onClose}><X size={16} /></button>
         </div>
-        <div className="modal-body">
+        <div className="ac-modal-body">
           {keywords.length === 0 ? (
-            <p style={{ color: "var(--text-muted)", fontSize: "13px" }}>Chưa có từ khóa</p>
+            <p className="ac-empty">Chưa có dữ liệu</p>
           ) : keywords.map((kw, idx) => (
-            <div key={idx} className="kw-row">
-              <div className="kw-info">
-                <span className="kw-dot" style={{ background: COLORS[idx % COLORS.length] }}></span>
-                <span className="kw-name">{kw}</span>
-                <span className="kw-count">-</span>
+            <div key={idx} className="ac-kw-row">
+              <div className="ac-kw-left">
+                <span className="ac-dot" style={{ background: PALETTE[idx % PALETTE.length] }} />
+                <span className="ac-kw-name">{kw.keyword}</span>
+                <span className="ac-kw-count">{kw.count} bài</span>
               </div>
-              <div className="kw-bar-wrap">
-                <div className="kw-bar-fill" style={{
-                  width: `${Math.round((idx + 1) / keywords.length * 100)}%`,
-                  background: COLORS[idx % COLORS.length],
-                }}></div>
+              <div className="ac-kw-bar-wrap">
+                <div className="ac-kw-bar-fill" style={{
+                  width: `${Math.round((kw.count / max) * 100)}%`,
+                  background: PALETTE[idx % PALETTE.length],
+                }} />
               </div>
-              <span className="kw-pct">{Math.round((idx + 1) / keywords.length * 100)}%</span>
+              <span className="ac-kw-pct">{Math.round((kw.count / max) * 100)}%</span>
             </div>
           ))}
         </div>
@@ -46,107 +106,34 @@ const KeywordsModal = ({ keywords, onClose }) => {
   );
 };
 
-// ===================== CHAT BUBBLE (góc phải) =====================
-const ChatBubble = ({ articles, onClose, setShowChat }) => {
-  const [isClosing, setIsClosing] = useState(false);
+// ===================== CHAT BUBBLE =====================
+const ChatBubble = ({ stats, analytics, onClose }) => {
+  const [closing, setClosing] = useState(false);
   const [messages, setMessages] = useState([{
     id: 1, role: "ai",
-    text: `Xin chào! Tôi là Sentinel AI.\n\nĐã phân tích **${articles?.length || 0} bài báo** về dịch bệnh.\n\nBạn muốn hỏi gì về tình hình dịch bệnh?`,
+    text: `Xin chào! Tôi là Sentinel AI.\n\nĐã phân tích **${stats?.total_articles || 0} bài báo**. Bệnh nổi bật: **${stats?.top_keyword || "N/A"}** (${stats?.top_keyword_count || 0} bài).\n\nBạn muốn hỏi gì?`,
   }]);
   const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
+  const [typing, setTyping] = useState(false);
   const bottomRef = useRef(null);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, typing]);
 
-  const buildContext = () => {
-    const articlesText = (articles || [])
-      .slice(0, 5)
-      .map(a => `${a.title}: ${a.disease_name || 'N/A'} tại ${a.location || 'N/A'}`)
-      .join("\n");
-
-    return `Bạn là Sentinel AI - trợ lý phân tích dịch bệnh Việt Nam. Dữ liệu từ hệ thống:
-Tổng bài phân tích: ${articles?.length || 0}
-Các bài gần đây:
-${articlesText || 'Chưa có dữ liệu'}
-
-Hãy trả lời ngắn gọn bằng tiếng Việt dựa trên dữ liệu trên. Nếu không có thông tin thì nói rõ.`;
-  };
-
-  const sendMessage = async (quickText) => {
-    const userText = quickText || input.trim();
-    if (!userText || isTyping) return;
+  const send = async (quickText) => {
+    const text = quickText || input.trim();
+    if (!text || typing) return;
     setInput("");
-
-    setMessages((prev) => [...prev, { id: Date.now(), role: "user", text: userText }]);
-    setIsTyping(true);
-
-    try {
-      if (!OPENAI_KEY) {
-        throw new Error("OpenAI key chưa được cấu hình");
-      }
-
-      const contents = [
-        {
-          role: "system",
-          content: buildContext(),
-        },
-      ];
-
-      messages.slice(1).forEach((m) => {
-        contents.push({
-          role: m.role === "ai" ? "assistant" : "user",
-          content: m.text,
-        });
-      });
-
-      contents.push({
-        role: "user",
-        content: userText,
-      });
-
-      const res = await fetch(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${OPENAI_KEY}`,
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: contents,
-            max_tokens: 500,
-            temperature: 0.7,
-          }),
-        }
-      );
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(`API error: ${errData?.error?.message || "Unknown"}`);
-      }
-
-      const data = await res.json();
-      const aiText = data?.choices?.[0]?.message?.content || "Không nhận được phản hồi từ AI.";
-      setMessages((prev) => [...prev, { id: Date.now() + 1, role: "ai", text: aiText }]);
-    } catch (err) {
-      console.error("AI error:", err);
-      setMessages((prev) => [...prev, { id: Date.now() + 1, role: "ai", text: `Lỗi: ${err.message}` }]);
-    } finally {
-      setIsTyping(false);
-    }
-  };
-
-  const handleClose = () => {
-    setIsClosing(true);
+    setMessages(prev => [...prev, { id: Date.now(), role: "user", text }]);
+    setTyping(true);
     setTimeout(() => {
-      onClose();
-      if (setShowChat) setShowChat(false);
-    }, 250);
+      const kws = (analytics?.top_keywords || []).slice(0, 3).map(k => `${k.keyword} (${k.count} bài)`).join(", ");
+      const reply = `Dựa trên dữ liệu:\n- Tổng bài: **${stats?.total_articles || 0}**\n- Bệnh nổi bật: **${kws || "chưa có"}**\n- Bài 7 ngày gần đây: **${stats?.recent_7d || 0}**`;
+      setMessages(prev => [...prev, { id: Date.now() + 1, role: "ai", text: reply }]);
+      setTyping(false);
+    }, 1200);
   };
+
+  const close = () => { setClosing(true); setTimeout(onClose, 220); };
 
   const renderText = (text) =>
     text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
@@ -154,58 +141,52 @@ Hãy trả lời ngắn gọn bằng tiếng Việt dựa trên dữ liệu trê
     );
 
   return (
-    <div className={`chat-bubble-box ${isClosing ? "bubble-closing" : ""}`}>
-      <div className="chat-bubble-header">
-        <div className="chat-bot-info">
-          <div className="bot-avatar"><Bot size={18} /></div>
+    <div className={`ac-chat-box ${closing ? "closing" : ""}`}>
+      <div className="ac-chat-header">
+        <div className="ac-bot-info">
+          <div className="ac-bot-avatar"><Bot size={16} /></div>
           <div>
-            <h3>Sentinel AI</h3>
-            <span className="bot-online">● GPT-4o Mini</span>
+            <p className="ac-bot-name">Sentinel AI</p>
+            <p className="ac-bot-status">● Đang hoạt động</p>
           </div>
         </div>
-        <button className="modal-close" onClick={handleClose}><X size={16} /></button>
+        <button className="ac-icon-btn" onClick={close}><X size={15} /></button>
       </div>
-
-      <div className="chat-messages">
-        {messages.map((msg) => (
-          <div key={msg.id} className={`chat-msg ${msg.role}`}>
-            {msg.role === "ai" && <div className="msg-avatar"><Bot size={13} /></div>}
-            <div className="msg-bubble">{renderText(msg.text)}</div>
+      <div className="ac-chat-messages">
+        {messages.map(msg => (
+          <div key={msg.id} className={`ac-msg ${msg.role}`}>
+            {msg.role === "ai" && <div className="ac-msg-avatar"><Bot size={12} /></div>}
+            <div className="ac-msg-bubble">{renderText(msg.text)}</div>
           </div>
         ))}
-        {isTyping && (
-          <div className="chat-msg ai">
-            <div className="msg-avatar"><Bot size={13} /></div>
-            <div className="msg-bubble typing"><span /><span /><span /></div>
+        {typing && (
+          <div className="ac-msg ai">
+            <div className="ac-msg-avatar"><Bot size={12} /></div>
+            <div className="ac-msg-bubble typing"><span /><span /><span /></div>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
-
-      <div className="quick-questions">
-        {["Các bệnh được phát hiện?", "Vùng dịch nào nhiều?", "Bài mới nhất?"].map((q, i) => (
-          <button key={i} className="quick-btn" onClick={() => sendMessage(q)}>{q}</button>
+      <div className="ac-quick-btns">
+        {["Bệnh nào nhiều nhất?", "7 ngày gần đây?", "Khu vực đáng lo?"].map((q, i) => (
+          <button key={i} className="ac-quick" onClick={() => send(q)}>{q}</button>
         ))}
       </div>
-
-      <div className="chat-input-row">
+      <div className="ac-chat-input">
         <textarea
-          className="chat-textarea"
-          placeholder="Hỏi về tình hình dịch bệnh... (Enter để gửi)"
+          placeholder="Hỏi về dịch bệnh... (Enter gửi)"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
           rows={1}
         />
-        <button className="chat-send-btn" onClick={() => sendMessage()} disabled={isTyping || !input.trim()}>
-          <Send size={16} />
-        </button>
+        <button onClick={() => send()} disabled={typing || !input.trim()}><Send size={15} /></button>
       </div>
     </div>
   );
 };
 
-// ===================== MAIN COMPONENT =====================
+// ===================== MAIN =====================
 const AnalyticsContent = () => {
   const [timeRange, setTimeRange] = useState(7);
   const [articles, setArticles] = useState([]);
@@ -213,247 +194,360 @@ const AnalyticsContent = () => {
   const [showKeywords, setShowKeywords] = useState(false);
   const [showChat, setShowChat] = useState(false);
 
-  // Fetch articles từ backend
   useEffect(() => {
-    const fetchArticles = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`${API_BASE_URL}/articles`);
-        const data = await res.json();
-        setArticles(Array.isArray(data) ? data : []);
-        console.log("✅ Articles fetched:", data?.length || 0);
-      } catch (err) {
-        console.error("❌ Articles fetch error:", err);
-        setArticles([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchArticles();
+    setLoading(true);
+    fetch(`${API_BASE_URL}/articles`)
+      .then(r => r.json())
+      .then(data => setArticles(Array.isArray(data) ? data : []))
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
 
-  // Lọc bài viết theo thời gian
-  const getFilteredArticles = () => {
-    const now = new Date();
-    const cutoffDate = new Date(now.getTime() - timeRange * 24 * 60 * 60 * 1000);
+  // ── Analytics computation ──
+  const { stats, analytics } = useMemo(() => {
+    if (!articles.length) return { stats: null, analytics: null };
 
-    return articles.filter(a => {
-      if (!a.processed_at) return true;
-      const articleDate = new Date(a.processed_at);
-      return articleDate >= cutoffDate;
+    const cutoff = getCutoff(timeRange);
+    const cutoff7d = getCutoff(7);
+
+    // Sử dụng processed_at để lọc (thời điểm dữ liệu được xử lý/cào về)
+    const inRange = articles.filter(a => {
+      const d = parseDate(a.processed_at);
+      return d && d >= cutoff;
     });
-  };
 
-  const filteredArticles = getFilteredArticles();
+    const recent7d = articles.filter(a => {
+      const d = parseDate(a.processed_at);
+      return d && d >= cutoff7d;
+    }).length;
 
-  // Tính toán các chỉ số
-  const totalInRange = filteredArticles.length;
-  const uniqueDiseases = [...new Set(filteredArticles.map(a => a.disease_name).filter(Boolean))];
-  const uniqueLocations = [...new Set(filteredArticles.map(a => a.location).filter(Boolean))];
+    // Disease counts toàn bộ
+    const diseaseCounts = {};
+    articles.forEach(a => {
+      if (a.disease_name) diseaseCounts[a.disease_name] = (diseaseCounts[a.disease_name] || 0) + 1;
+    });
+    const topEntries = Object.entries(diseaseCounts).sort((a, b) => b[1] - a[1]);
 
-  // Đếm tần suất mỗi bệnh
-  const diseaseFreq = {};
-  filteredArticles.forEach(a => {
-    if (a.disease_name) {
-      diseaseFreq[a.disease_name] = (diseaseFreq[a.disease_name] || 0) + 1;
+    // Sources
+    const uniqueSources = new Set(
+      articles.map(a => { try { return new URL(a.url || "").hostname.replace("www.", ""); } catch { return null; } }).filter(Boolean)
+    ).size;
+
+    const computedStats = {
+      total_articles: articles.length,
+      in_range: inRange.length,
+      unique_sources: uniqueSources,
+      recent_7d: recent7d,
+      top_keyword: topEntries[0]?.[0] || "N/A",
+      top_keyword_count: topEntries[0]?.[1] || 0,
+    };
+
+    // Daily counts — group theo ngày từ processed_at
+    const dayMap = {};
+    inRange.forEach(a => {
+      const d = parseDate(a.processed_at);
+      if (!d) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      dayMap[key] = (dayMap[key] || 0) + 1;
+    });
+
+    // Tạo đủ tất cả ngày trong khoảng (không bỏ sót ngày = 0)
+    const allDays = [];
+    const now = new Date();
+    for (let i = timeRange - 1; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      d.setHours(0, 0, 0, 0);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      allDays.push({ date: key, count: dayMap[key] || 0 });
     }
-  });
-  const topDiseases = Object.entries(diseaseFreq)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([name, count]) => ({ name, count }));
 
-  // Đếm tần suất mỗi vị trí
-  const locationFreq = {};
-  filteredArticles.forEach(a => {
-    if (a.location) {
-      locationFreq[a.location] = (locationFreq[a.location] || 0) + 1;
-    }
-  });
-  const topLocations = Object.entries(locationFreq)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([name, count]) => ({ name, count }));
+    // Top diseases trong khoảng
+    const rangeDiseases = {};
+    inRange.forEach(a => {
+      if (a.disease_name) rangeDiseases[a.disease_name] = (rangeDiseases[a.disease_name] || 0) + 1;
+    });
+    const topKeywords = Object.entries(rangeDiseases)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([keyword, count]) => ({ keyword, count }));
 
-  // Đếm tần suất risk level
-  const riskFreq = { LOW: 0, MEDIUM: 0, HIGH: 0 };
-  filteredArticles.forEach(a => {
-    const risk = a.risk_level || 'LOW';
-    if (risk in riskFreq) riskFreq[risk]++;
-  });
+    const top3 = topKeywords.slice(0, 3).map(k => k.keyword);
 
-  // Tính chỉ số rủi ro (%)
-  const highRiskPercent = totalInRange > 0 ? Math.round((riskFreq.HIGH / totalInRange) * 100) : 0;
-  const getRisk = (v) => v > 50 ? { text: "Cao", color: "#ef4444" } : v > 20 ? { text: "Trung bình", color: "#f59e0b" } : { text: "Thấp", color: "#10b981" };
-  const risk = getRisk(highRiskPercent);
+    // Line chart data: top 3 disease theo ngày
+    const lineMap = {};
+    inRange.forEach(a => {
+      if (!a.disease_name || !top3.includes(a.disease_name)) return;
+      const d = parseDate(a.processed_at);
+      if (!d) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      if (!lineMap[key]) lineMap[key] = {};
+      lineMap[key][a.disease_name] = (lineMap[key][a.disease_name] || 0) + 1;
+    });
+    const lineData = allDays.map(({ date }) => ({
+      date,
+      ...Object.fromEntries(top3.map(k => [k, lineMap[date]?.[k] || 0])),
+    }));
 
-  // Dữ liệu cho biểu đồ (theo ngày)
-  const dailyData = {};
-  filteredArticles.forEach(a => {
-    const date = a.processed_at?.split('T')[0] || new Date().toISOString().split('T')[0];
-    dailyData[date] = (dailyData[date] || 0) + 1;
-  });
-  const chartData = Object.entries(dailyData)
-    .sort((a, b) => new Date(a[0]) - new Date(b[0]))
-    .map(([date, count]) => ({ date, count }));
+    // Risk score
+    const recentRatio = inRange.length / Math.max(articles.length, 1);
+    const riskScore = Math.round(recentRatio * 100);
 
-  const predictors = topDiseases.slice(0, 3).map((d, idx) => ({
-    name: d.name,
-    value: totalInRange > 0 ? Math.round((d.count / totalInRange) * 100) : 0,
-    count: d.count,
-    color: COLORS[idx],
+    return {
+      stats: computedStats,
+      analytics: {
+        in_range: inRange.length,
+        daily_counts: allDays,
+        top_keywords: topKeywords,
+        top3,
+        line_data: lineData,
+        risk_score: riskScore,
+      },
+    };
+  }, [articles, timeRange]);
+
+  const riskInfo = analytics?.risk_score > 60
+    ? { text: "Cao", color: "#ef4444" }
+    : analytics?.risk_score > 30
+      ? { text: "Trung bình", color: "#f59e0b" }
+      : { text: "Thấp", color: "#10b981" };
+
+  const timeLabel = timeRange === 1 ? "24 giờ qua" : `${timeRange} ngày qua`;
+
+  const forecastRows = (analytics?.top_keywords || []).slice(0, 5).map((kw, idx) => ({
+    ...kw,
+    pct: Math.round((kw.count / Math.max(analytics?.in_range || 1, 1)) * 100),
+    status: idx < 2 ? "Tăng" : "Theo dõi",
+    color: PALETTE[idx],
   }));
 
-  const forecastData = topDiseases.slice(0, 5).map((d, idx) => ({
-    id: idx,
-    name: d.name,
-    count: d.count,
-    percentage: totalInRange > 0 ? Math.round((d.count / totalInRange) * 100) : 0,
-    status: d.count > Math.max(...topDiseases.map(x => x.count / 2)) ? "Escalating" : "Monitoring",
-    color: idx < 2 ? "#ef4444" : "#10b981",
-  }));
-
-  const timeLabel = timeRange === 1 ? "24 Giờ" : timeRange === 7 ? "7 Ngày" : "30 Ngày";
-
-  const formatDate = (d) => {
-    if (!d) return "";
-    const dt = new Date(d + "T00:00:00");
-    return `${dt.getDate()}/${dt.getMonth() + 1}`;
+  // Custom bar label
+  const renderBarLabel = ({ x, y, width, value }) => {
+    if (!value) return null;
+    return <text x={x + width / 2} y={y - 4} textAnchor="middle" fill="#94a3b8" fontSize={10}>{value}</text>;
   };
 
   return (
-    <div className="analytics-inner-body">
-      {/* Keywords Modal */}
-      {showKeywords && (
-        <KeywordsModal keywords={uniqueDiseases} onClose={() => setShowKeywords(false)} />
-      )}
+    <div className="ac-body">
+      {showKeywords && <KeywordsModal keywords={analytics?.top_keywords || []} onClose={() => setShowKeywords(false)} />}
+      {showChat && <ChatBubble stats={stats} analytics={analytics} onClose={() => setShowChat(false)} />}
 
-      {/* Chat Bubble */}
-      {showChat && (
-        <ChatBubble articles={filteredArticles} onClose={() => setShowChat(false)} setShowChat={setShowChat} />
-      )}
-
-      {/* HEADER */}
-      <div className="analytics-header">
-        <div>
-          <h1 className="main-title">Phân tích Xu hướng & Dự đoán</h1>
-          <p className="subtitle">
-            {loading ? "Đang tải dữ liệu..." : `${totalInRange} bài viết trong ${timeLabel} | Tổng: ${articles.length} bài`}
+      {/* ── HEADER ── */}
+      <div className="ac-header">
+        <div className="ac-header-left">
+          <h1 className="ac-title">Phân tích & Xu hướng Dịch bệnh</h1>
+          <p className="ac-subtitle">
+            {loading ? "Đang tải dữ liệu..." : `${analytics?.in_range ?? 0} bài trong ${timeLabel} · Tổng cộng ${stats?.total_articles ?? 0} bài`}
           </p>
         </div>
-        <div className="filter-card">
-          <div className="time-filters">
-            {[{ l: "24 Giờ", v: 1 }, { l: "7 Ngày", v: 7 }, { l: "30 Ngày", v: 30 }].map((t) => (
-              <button key={t.v} className={`filter-btn ${timeRange === t.v ? "active" : ""}`} onClick={() => setTimeRange(t.v)}>{t.l}</button>
+        <div className="ac-header-right">
+          <div className="ac-time-tabs">
+            {[{ l: "24H", v: 1 }, { l: "7 ngày", v: 7 }, { l: "30 ngày", v: 30 }].map(t => (
+              <button key={t.v} className={`ac-tab ${timeRange === t.v ? "active" : ""}`} onClick={() => setTimeRange(t.v)}>
+                {t.l}
+              </button>
             ))}
           </div>
-          <button className="region-select"><span>Việt Nam</span><ChevronDown size={14} /></button>
         </div>
       </div>
 
-      {/* MAIN GRID */}
-      <div className="analytics-grid">
-        <div className="panel chart-panel">
-          <div className="panel-header">
-            <h3>Số bài viết theo ngày ({timeLabel})</h3>
-            <button className="more-btn"><MoreVertical size={16} /></button>
-          </div>
-          <div className="chart-main">
+      {/* ── STAT CARDS ── */}
+      <div className="ac-stats-row">
+        <StatCard icon={FileText} label="Bài trong kỳ" value={loading ? "…" : analytics?.in_range ?? 0} sub={timeLabel} color="#6366f1" />
+        <StatCard icon={Activity} label="Tổng bài báo" value={loading ? "…" : stats?.total_articles ?? 0} sub="Đã thu thập" color="#10b981" />
+        <StatCard icon={TrendingUp} label="Loại bệnh" value={loading ? "…" : analytics?.top_keywords?.length ?? 0} sub={`Trong ${timeLabel}`} color="#f59e0b" />
+        <StatCard icon={AlertTriangle} label="Mức độ rủi ro" value={loading ? "…" : riskInfo.text} sub={`${analytics?.risk_score ?? 0}% tỷ lệ bài mới`} color={riskInfo.color} />
+      </div>
+
+      {/* ── MAIN GRID ── */}
+      <div className="ac-grid">
+        {/* Cột trái: 2 biểu đồ */}
+        <div className="ac-col-main">
+          {/* Bar chart: số bài theo ngày */}
+          <div className="ac-panel">
+            <div className="ac-panel-header">
+              <h3>Số bài cào được theo ngày</h3>
+              <span className="ac-panel-meta">{timeLabel}</span>
+            </div>
             {loading ? (
-              <div className="chart-placeholder">Đang tải biểu đồ...</div>
-            ) : chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                  <XAxis dataKey="date" stroke="#94a3b8" style={{ fontSize: "11px" }} tickFormatter={formatDate} />
-                  <YAxis stroke="#94a3b8" style={{ fontSize: "11px" }} />
-                  <Tooltip contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #334155", borderRadius: "8px" }} labelFormatter={(v) => `Ngày ${formatDate(v)}`} formatter={(v) => [`${v} bài`, "Số bài"]} />
-                  <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              <div className="ac-skeleton" style={{ height: 220 }} />
+            ) : analytics?.daily_counts?.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={analytics.daily_counts} margin={{ top: 20, right: 8, left: -24, bottom: 0 }} barSize={timeRange === 1 ? 40 : timeRange === 7 ? 28 : 12}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    stroke="#4b5563"
+                    tick={{ fill: "#6b7280", fontSize: 11 }}
+                    tickFormatter={fmtDate}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    stroke="#4b5563"
+                    tick={{ fill: "#6b7280", fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                  <Bar dataKey="count" name="Bài báo" fill="#6366f1" radius={[4, 4, 0, 0]} label={timeRange <= 7 ? renderBarLabel : false} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="chart-placeholder">Không có dữ liệu trong khoảng thời gian này</div>
+              <div className="ac-empty-chart">Không có dữ liệu trong khoảng này</div>
             )}
+          </div>
 
-            {!loading && topDiseases.length > 0 && chartData.length > 1 && (
-              <>
-                <div style={{ fontSize: "12px", color: "var(--text-muted)", margin: "20px 0 8px", fontWeight: 600 }}>Top bệnh được phát hiện</div>
-                <ResponsiveContainer width="100%" height={160}>
-                  <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                    <XAxis dataKey="date" stroke="#94a3b8" style={{ fontSize: "10px" }} tickFormatter={formatDate} />
-                    <YAxis stroke="#94a3b8" style={{ fontSize: "10px" }} />
-                    <Tooltip contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #334155", borderRadius: "8px" }} labelFormatter={(v) => `Ngày ${formatDate(v)}`} />
-                    <Legend wrapperStyle={{ fontSize: "11px" }} />
-                    {topDiseases.slice(0, 3).map((d, idx) => (
-                      <Line key={d.name} type="monotone" dataKey="count" stroke={COLORS[idx]} dot={false} strokeWidth={2} name={d.name} />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </>
-            )}
-
-            <div className="stats-row">
-              <div className="stat"><div className="stat-label">Bài viết trong kỳ</div><div className="stat-value up">{loading ? "..." : totalInRange}</div></div>
-              <div className="stat"><div className="stat-label">Chỉ số Rủi ro</div><div className="stat-value" style={{ color: risk.color }}>{risk.text}</div></div>
-              <div className="stat"><div className="stat-label">Bệnh duy nhất</div><div className="stat-value warn">{loading ? "..." : uniqueDiseases.length}</div></div>
+          {/* Line chart: top 3 bệnh theo ngày */}
+          <div className="ac-panel">
+            <div className="ac-panel-header">
+              <h3>Top bệnh theo ngày</h3>
+              <div className="ac-legend">
+                {(analytics?.top3 || []).map((kw, i) => (
+                  <span key={i} className="ac-legend-item">
+                    <span className="ac-legend-dot" style={{ background: PALETTE[i] }} />
+                    {kw}
+                  </span>
+                ))}
+              </div>
             </div>
+            {loading ? (
+              <div className="ac-skeleton" style={{ height: 200 }} />
+            ) : analytics?.line_data?.length > 0 && analytics?.top3?.length > 0 ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={analytics.line_data} margin={{ top: 10, right: 8, left: -24, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    stroke="#4b5563"
+                    tick={{ fill: "#6b7280", fontSize: 11 }}
+                    tickFormatter={fmtDate}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    stroke="#4b5563"
+                    tick={{ fill: "#6b7280", fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  {analytics.top3.map((kw, i) => (
+                    <Line
+                      key={kw}
+                      type="monotone"
+                      dataKey={kw}
+                      stroke={PALETTE[i]}
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 4, strokeWidth: 0 }}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="ac-empty-chart">Không đủ dữ liệu để vẽ biểu đồ</div>
+            )}
           </div>
         </div>
 
-        <div className="side-column">
-          <div className="panel predictor-panel">
-            <div className="panel-header"><h3>Top Bệnh ({timeLabel})</h3></div>
-            {loading ? <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>Đang tải...</p>
-              : predictors.map((p, idx) => (
-                <div key={idx} className="predictor-item">
-                  <div className="p-info">
-                    <span><span className="dot" style={{ backgroundColor: p.color }}></span>{p.name}</span>
-                    <span className="p-weight">{p.value}%</span>
-                  </div>
-                  <div className="p-bar"><div className="fill" style={{ width: `${p.value}%`, backgroundColor: p.color }}></div></div>
-                  <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "4px" }}>{p.count} bài viết</div>
-                </div>
-              ))}
+        {/* Cột phải: ranking + tags */}
+        <div className="ac-col-side">
+          <div className="ac-panel ac-panel-fill">
+            <div className="ac-panel-header">
+              <h3>Bệnh nổi bật</h3>
+              <span className="ac-panel-meta">{timeLabel}</span>
+            </div>
+            {loading ? (
+              <div className="ac-skeleton" style={{ height: 200 }} />
+            ) : (analytics?.top_keywords || []).slice(0, 6).length === 0 ? (
+              <p className="ac-empty">Không có dữ liệu</p>
+            ) : (
+              <div className="ac-rankings">
+                {(analytics?.top_keywords || []).slice(0, 6).map((kw, idx) => {
+                  const pct = Math.round((kw.count / Math.max(analytics?.top_keywords?.[0]?.count || 1, 1)) * 100);
+                  return (
+                    <div key={idx} className="ac-rank-item">
+                      <div className="ac-rank-top">
+                        <div className="ac-rank-name">
+                          <span className="ac-dot" style={{ background: PALETTE[idx % PALETTE.length] }} />
+                          <span>{kw.keyword}</span>
+                        </div>
+                        <span className="ac-rank-count">{kw.count} bài</span>
+                      </div>
+                      <div className="ac-rank-bar">
+                        <div className="ac-rank-fill" style={{ width: `${pct}%`, background: PALETTE[idx % PALETTE.length] }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          <div className="panel sentiment-panel">
-            <div className="panel-header"><h3>Tất cả Bệnh</h3></div>
-            <div className="sentiment-tags">
-              {loading ? <p style={{ fontSize: "11px" }}>Đang tải...</p>
-                : uniqueDiseases.slice(0, 6).map((disease, idx) => {
-                  const types = ["blue", "green", "orange", "", "blue", "green"];
-                  const count = diseaseFreq[disease] || 0;
-                  return <span key={idx} className={`tag ${types[idx]}`}>{disease} ({count})</span>;
-                })}
+          <div className="ac-panel">
+            <div className="ac-panel-header">
+              <h3>Danh mục bệnh</h3>
             </div>
-            <button className="expand-btn" onClick={() => setShowKeywords(true)}>Xem thêm →</button>
+            <div className="ac-tags">
+              {loading ? <div className="ac-skeleton" style={{ height: 60 }} /> :
+                (analytics?.top_keywords || []).slice(0, 8).map((kw, idx) => (
+                  <span key={idx} className="ac-tag" style={{ "--tag-color": PALETTE[idx % PALETTE.length] }}>
+                    {kw.keyword} <em>{kw.count}</em>
+                  </span>
+                ))
+              }
+            </div>
+            <button className="ac-expand-btn" onClick={() => setShowKeywords(true)}>
+              Xem tất cả →
+            </button>
           </div>
         </div>
       </div>
 
-      {/* TABLE */}
-      <div className="panel forecast-panel">
-        <div className="panel-header">
-          <h3>Bảng Bệnh Nổi Bật</h3>
-          <span className="forecast-meta">{timeLabel} | {totalInRange} bài viết</span>
+      {/* ── TABLE ── */}
+      <div className="ac-panel ac-table-panel">
+        <div className="ac-panel-header">
+          <h3>Bảng chi tiết bệnh nổi bật</h3>
+          <span className="ac-panel-meta">{timeLabel} · {analytics?.in_range || 0} bài</span>
         </div>
-        <div className="table-responsive">
-          <table className="custom-table">
-            <thead><tr><th>Bệnh</th><th>Số bài</th><th>Tỷ lệ</th><th>Mức độ</th><th>Kỳ phân tích</th><th>Hành động</th></tr></thead>
+        <div className="ac-table-wrap">
+          <table className="ac-table">
+            <thead>
+              <tr>
+                <th>Tên bệnh</th>
+                <th>Số bài</th>
+                <th>Tỷ lệ</th>
+                <th>Xu hướng</th>
+                <th>Kỳ phân tích</th>
+              </tr>
+            </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="6" style={{ textAlign: "center", color: "var(--text-muted)" }}>Đang tải...</td></tr>
-              ) : forecastData.length === 0 ? (
-                <tr><td colSpan="6" style={{ textAlign: "center", color: "var(--text-muted)" }}>Không có dữ liệu</td></tr>
-              ) : forecastData.map((row) => (
-                <tr key={row.id}>
-                  <td><div className="pathogen-name"><span className="status-indicator" style={{ backgroundColor: row.color }}></span>{row.name}</div></td>
-                  <td>{row.count} bài</td>
-                  <td><span className="prediction-badge">+{row.percentage}%</span></td>
-                  <td><span className={`badge ${row.status === "Escalating" ? "red" : "blue"}`}>{row.status}</span></td>
-                  <td style={{ fontSize: "12px" }}>{timeLabel}</td>
-                  <td><a href="#" className="action-link" onClick={(e) => e.preventDefault()}>Chi tiết</a></td>
+                <tr><td colSpan={5} className="ac-table-empty">Đang tải...</td></tr>
+              ) : forecastRows.length === 0 ? (
+                <tr><td colSpan={5} className="ac-table-empty">Không có dữ liệu trong khoảng này</td></tr>
+              ) : forecastRows.map((row, idx) => (
+                <tr key={idx}>
+                  <td>
+                    <div className="ac-disease-name">
+                      <span className="ac-dot" style={{ background: row.color }} />
+                      {row.keyword}
+                    </div>
+                  </td>
+                  <td><strong>{row.count}</strong></td>
+                  <td>
+                    <div className="ac-pct-bar">
+                      <div className="ac-pct-fill" style={{ width: `${row.pct}%`, background: row.color }} />
+                      <span>{row.pct}%</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span className={`ac-badge ${idx < 2 ? "red" : "blue"}`}>{row.status}</span>
+                  </td>
+                  <td className="ac-table-meta">{timeLabel}</td>
                 </tr>
               ))}
             </tbody>
@@ -461,13 +555,10 @@ const AnalyticsContent = () => {
         </div>
       </div>
 
-      {/* FLOATING AI BUTTON */}
-      <button
-        className="floating-ai-btn"
-        onClick={() => setShowChat(!showChat)}
-      >
-        <Zap size={18} />
-        <span>AI Assistant</span>
+      {/* ── FLOATING AI ── */}
+      <button className={`ac-fab ${showChat ? "active" : ""}`} onClick={() => setShowChat(!showChat)}>
+        <Bot size={17} />
+        <span>Sentinel AI</span>
       </button>
     </div>
   );
