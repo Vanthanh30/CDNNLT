@@ -3,6 +3,9 @@ from pydantic import BaseModel
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src import database
+import requests
+
+CHATBOT_SERVICE_URL = "http://localhost:8000/chat"
 
 app = FastAPI(title="Disease Management API")
 
@@ -62,4 +65,54 @@ def filter_articles(
 
 @app.post("/api/chat")
 def chat(request: ChatRequest):
-    return database.generate_chatbot_answer(request.question)
+    # 1. Lấy dữ liệu từ DB
+    rows = database.search_chatbot_context(request.question, limit=5)
+
+    if not rows:
+        return {
+            "answer": "Không tìm thấy dữ liệu phù hợp.",
+            "sources": []
+        }
+
+    # 2. Gọi chatbot-service
+    ai_answer = call_chatbot_service(request.question, rows)
+
+    # 3. Trả sources
+    sources = []
+    for row in rows:
+        sources.append({
+            "title": row.get("title"),
+            "url": row.get("url"),
+            "disease_name": row.get("disease_name"),
+            "location": row.get("location"),
+            "risk_level": row.get("risk_level")
+        })
+
+    return {
+        "answer": ai_answer,
+        "sources": sources
+    }
+
+def call_chatbot_service(question, rows):
+    try:
+        response = requests.post(
+            CHATBOT_SERVICE_URL,
+            json={
+                "question": question,
+                "context": rows
+            },
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            return response.json().get("answer")
+
+        return "Chatbot service lỗi."
+
+    except Exception as e:
+        print("❌ Lỗi gọi chatbot-service:", e)
+        return "Không thể kết nối chatbot-service."
+    
+@app.get("/internal/search")
+def search_for_chatbot(question: str):
+    return database.search_chatbot_context(question, limit=20)

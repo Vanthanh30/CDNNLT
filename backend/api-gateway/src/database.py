@@ -461,6 +461,37 @@ def filter_articles(
 
     return rows
 
+def extract_keywords(question: str):
+    q = question.lower()
+
+    disease = None
+    location = None
+
+    # lấy tất cả disease trong DB
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute("SELECT name FROM DISEASE")
+    diseases = [d["name"].lower() for d in cursor.fetchall()]
+
+    cursor.execute("SELECT name FROM REGION")
+    regions = [r["name"].lower() for r in cursor.fetchall()]
+
+    cursor.close()
+    conn.close()
+
+    for d in diseases:
+        if d in q:
+            disease = d
+            break
+
+    for r in regions:
+        if r in q:
+            location = r
+            break
+
+    return disease, location
+
 def search_chatbot_context(question: str, limit: int = 5):
     conn = get_connection()
     if not conn:
@@ -468,7 +499,7 @@ def search_chatbot_context(question: str, limit: int = 5):
 
     cursor = conn.cursor(dictionary=True)
 
-    like = f"%{question}%"
+    disease, location = extract_keywords(question)
 
     query = """
         SELECT
@@ -489,18 +520,36 @@ def search_chatbot_context(question: str, limit: int = 5):
         LEFT JOIN DISEASE d ON de.disease_id = d.id
         LEFT JOIN REGION rg ON de.region_id = rg.id
         LEFT JOIN STATIC s ON s.event_id = de.id
-        WHERE
-            r.title LIKE %s
-            OR r.content LIKE %s
-            OR a.summary LIKE %s
-            OR a.content_clean LIKE %s
-            OR d.name LIKE %s
-            OR rg.name LIKE %s
-        ORDER BY a.processed_at DESC
-        LIMIT %s
+        WHERE 1=1
     """
 
-    cursor.execute(query, (like, like, like, like, like, like, limit))
+    params = []
+
+    # lọc theo disease
+    if disease:
+        query += " AND d.name LIKE %s"
+        params.append(f"%{disease}%")
+
+    # lọc theo location
+    if location:
+        query += " AND rg.name LIKE %s"
+        params.append(f"%{location}%")
+
+    # nếu không có gì thì fallback search nhẹ
+    if not disease and not location:
+        like = f"%{question}%"
+        query += """
+            AND (
+                r.title LIKE %s
+                OR a.summary LIKE %s
+            )
+        """
+        params.extend([like, like])
+
+    query += " ORDER BY a.processed_at DESC LIMIT %s"
+    params.append(limit)
+
+    cursor.execute(query, tuple(params))
     rows = cursor.fetchall()
 
     cursor.close()
@@ -514,41 +563,41 @@ def generate_chatbot_answer(question: str):
 
     if not rows:
         return {
-            "answer": "Hiện tại hệ thống chưa tìm thấy dữ liệu phù hợp trong cơ sở dữ liệu.",
+            "answer": "❌ Không tìm thấy dữ liệu phù hợp.",
             "sources": []
         }
 
-    answer_parts = []
-    sources = []
+    # gom theo khu vực
+    result = {}
 
-    answer_parts.append("Dựa trên dữ liệu dịch bệnh trong hệ thống, tôi tìm thấy các thông tin liên quan:")
-
-    for index, row in enumerate(rows, start=1):
+    for row in rows:
         disease = row.get("disease_name") or "Không xác định"
         location = row.get("location") or "Không xác định"
-        risk = row.get("risk_level") or "Không xác định"
-        infected = row.get("cases_infected") or 0
-        dead = row.get("cases_dead") or 0
-        recovered = row.get("cases_recovered") or 0
-        title = row.get("title") or "Không có tiêu đề"
 
+        if disease not in result:
+            result[disease] = []
+
+        result[disease].append(location)
+
+    answer_parts = []
+
+    for disease, locations in result.items():
+        unique_locations = list(set(locations))
         answer_parts.append(
-            f"{index}. {title}\n"
-            f"- Dịch bệnh: {disease}\n"
-            f"- Khu vực: {location}\n"
-            f"- Mức độ rủi ro: {risk}\n"
-            f"- Số ca nhiễm: {infected}, tử vong: {dead}, hồi phục: {recovered}"
+            f"📌 Dịch bệnh '{disease}' xuất hiện tại: {', '.join(unique_locations)}"
         )
 
+    sources = []
+    for row in rows:
         sources.append({
-            "title": title,
+            "title": row.get("title"),
             "url": row.get("url"),
-            "disease_name": disease,
-            "location": location,
-            "risk_level": risk
+            "disease_name": row.get("disease_name"),
+            "location": row.get("location"),
+            "risk_level": row.get("risk_level")
         })
 
     return {
-        "answer": "\n\n".join(answer_parts),
+        "answer": "\n".join(answer_parts),
         "sources": sources
     }
