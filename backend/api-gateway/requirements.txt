@@ -1,3 +1,5 @@
 mysql-connector-python
 fastapi
 uvicorn
+reportlab
+python-dotenv

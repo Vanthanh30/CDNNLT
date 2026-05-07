@@ -1,7 +1,19 @@
+import sys
+from pathlib import Path
 from typing import Optional
-from fastapi import FastAPI
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from src import database
+from fastapi.responses import StreamingResponse
+
+from . import database
+
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+REPORT_SERVICE_DIR = BASE_DIR / "report-service"
+
+load_dotenv(REPORT_SERVICE_DIR / ".env")
 
 app = FastAPI(title="Disease Management API")
 
@@ -52,4 +64,38 @@ def filter_articles(
         to_date=to_date,
         risk_level=risk_level,
         limit=limit
+    )
+
+
+def _ensure_report_service_import_path():
+    candidates = [
+        REPORT_SERVICE_DIR / "src",
+        Path("/app/report-service/src"),
+    ]
+
+    for path in candidates:
+        if path.exists():
+            path_str = str(path)
+            if path_str not in sys.path:
+                sys.path.insert(0, path_str)
+            return
+
+    raise HTTPException(status_code=503, detail="Report service code is not available")
+
+
+@app.get("/api/report/weekly/download")
+def download_weekly_report():
+    _ensure_report_service_import_path()
+
+    from report_generator import generate_weekly_report
+
+    result = generate_weekly_report()
+    if not result:
+        return {"message": "Không có dữ liệu"}
+
+    pdf_buffer, filename = result
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
