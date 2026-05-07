@@ -81,20 +81,27 @@ def save_weekly_report(start_date, end_date, summary_text, total_articles, pdf_u
 
     report_id = generate_id()
 
-    cursor.execute("""
-        INSERT INTO WEEKLY_REPORT
-        (id, week_start, week_end, summary_text, total_articles, pdf_url)
-        VALUES (%s, %s, %s, %s, %s, %s)
-    """, (report_id, start_date, end_date, summary_text, total_articles, pdf_url))
-
-    for aid in article_ids:
+    try:
         cursor.execute("""
-            INSERT INTO WEEKLY_REPORT_ARTICLE (report_id, article_id)
-            VALUES (%s, %s)
-        """, (report_id, aid))
+            INSERT INTO WEEKLY_REPORT
+            (id, week_start, week_end, summary_text, total_articles, pdf_url)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (report_id, start_date, end_date, summary_text, total_articles, pdf_url))
 
-    conn.commit()
-    cursor.close()
-    conn.close()
+        unique_article_ids = list(dict.fromkeys(article_ids or []))
+        for aid in unique_article_ids:
+            cursor.execute("""
+                INSERT INTO WEEKLY_REPORT_ARTICLE (report_id, article_id)
+                VALUES (%s, %s)
+            """, (report_id, aid))
 
-    return report_id
+        conn.commit()
+        return report_id
+
+    except Exception:
+        conn.rollback()
+        raise
+
+    finally:
+        cursor.close()
+        conn.close()

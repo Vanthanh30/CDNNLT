@@ -829,7 +829,6 @@ def generate_pdf(ai_summary_text: str, stats: dict,
 # ========================
 def generate_weekly_report():
     """Wrapper that fetches DB data and calls generate_pdf."""
-    # These imports exist in your project – kept here for compatibility
     from database import get_articles_in_range, save_weekly_report
     from ai_summary import generate_ai_summary
 
@@ -855,4 +854,15 @@ def generate_weekly_report():
 
     pdf_buffer = generate_pdf(summary, stats, start_date, end_date)
     filename   = f"weekly_{start_date}_{end_date}.pdf"
+    report_id = save_weekly_report(
+        start_date=start_date,
+        end_date=end_date,
+        summary_text=summary,
+        total_articles=stats["total_articles"],
+        pdf_url=None,
+        article_ids=stats["article_ids"],
+    )
+    print(f"✅ Đã lưu WEEKLY_REPORT: {report_id}")
+
+    pdf_buffer.seek(0)
     return pdf_buffer, filename
