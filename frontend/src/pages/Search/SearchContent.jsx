@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useEffect,
-  useMemo,
-  useRef,
-  useCallback,
-} from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Search,
@@ -16,23 +10,13 @@ import {
   ChevronRight,
   X,
   ExternalLink,
-  AlertCircle,
-  Clock,
-  MapPin,
-  Activity,
 } from "lucide-react";
-import { useArticles } from "../../hooks/useArticles";
 import FloatingChat from "../../components/FloatingChat/FloatingChat";
+import { useArticles } from "../../hooks/useArticles";
 import "./SearchContent.css";
 
 const RISK_COLOR = { HIGH: "#ef4444", MEDIUM: "#f59e0b", LOW: "#10b981" };
 const RISK_LABEL = { HIGH: "Cao", MEDIUM: "Trung bình", LOW: "Thấp" };
-
-const RISK_META = {
-  HIGH: { label: "Cao", cls: "risk-high" },
-  MEDIUM: { label: "Trung bình", cls: "risk-medium" },
-  LOW: { label: "Thấp", cls: "risk-low" },
-};
 
 const getFavicon = (url) => {
   try {
@@ -42,228 +26,6 @@ const getFavicon = (url) => {
   }
 };
 
-const timeAgo = (dateStr) => {
-  if (!dateStr) return null;
-  const diff = Math.floor((new Date() - new Date(dateStr)) / 60000);
-  if (diff < 1) return "Vừa cập nhật";
-  if (diff < 60) return `${diff} phút trước`;
-  if (diff < 1440) return `${Math.floor(diff / 60)} giờ trước`;
-  return `${Math.floor(diff / 1440)} ngày trước`;
-};
-
-// ── Result Card từ Search Overlay ──
-const ResultCard = ({ article }) => {
-  const risk = RISK_META[article.risk_level] || RISK_META.LOW;
-  const ago = timeAgo(article.processed_at);
-
-  return (
-    <div className="sr-card">
-      <div className="sr-card-top">
-        <div className="sr-card-info">
-          {article.disease_name && (
-            <span className="sr-disease">{article.disease_name}</span>
-          )}
-          <span className={`sr-risk ${risk.cls}`}>{risk.label}</span>
-        </div>
-        {ago && (
-          <span className="sr-time">
-            <Clock size={11} /> {ago}
-          </span>
-        )}
-      </div>
-
-      <h4 className="sr-title">{article.title || "Không có tiêu đề"}</h4>
-
-      {(article.summary || article.content_clean) && (
-        <p className="sr-summary">
-          {(article.summary || article.content_clean || "").slice(0, 160)}
-          {(article.summary || article.content_clean || "").length > 160
-            ? "…"
-            : ""}
-        </p>
-      )}
-
-      <div className="sr-card-footer">
-        <div className="sr-meta">
-          {article.location && (
-            <span className="sr-location">
-              <MapPin size={11} /> {article.location}
-            </span>
-          )}
-          {(article.cases_infected > 0 || article.cases_dead > 0) && (
-            <span className="sr-cases">
-              <Activity size={11} />
-              {article.cases_infected > 0 &&
-                `${article.cases_infected} ca nhiễm`}
-              {article.cases_infected > 0 && article.cases_dead > 0 && " · "}
-              {article.cases_dead > 0 && `${article.cases_dead} tử vong`}
-            </span>
-          )}
-        </div>
-        {article.url && (
-          <a
-            href={article.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="sr-link"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ExternalLink size={12} /> Xem bài báo
-          </a>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// ── Search Overlay ──
-const SearchOverlay = ({ query, articles, onClose }) => {
-  const [activeFilter, setActiveFilter] = useState("all");
-
-  const q = query.toLowerCase().trim();
-
-  const normalize = (s) =>
-    (s || "")
-      .toLowerCase()
-      .replace(/[\-\/().]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-  const nq = normalize(q);
-
-  const matchDisease = (a) => {
-    const nd = normalize(a.disease_name);
-    if (!nd) return false;
-    if (nd === nq) return true;
-    if (nd.includes(nq) || nq.includes(nd)) return true;
-    return false;
-  };
-
-  const byDisease = articles.filter(matchDisease);
-  const byLocation =
-    byDisease.length === 0
-      ? articles.filter((a) => normalize(a.location).includes(nq))
-      : [];
-
-  const allMatched = byDisease.length > 0 ? byDisease : byLocation;
-
-  const riskOrder = { HIGH: 0, MEDIUM: 1, LOW: 2 };
-  allMatched.sort((x, y) => {
-    const rd = (riskOrder[x.risk_level] ?? 3) - (riskOrder[y.risk_level] ?? 3);
-    if (rd !== 0) return rd;
-    return new Date(y.processed_at || 0) - new Date(x.processed_at || 0);
-  });
-
-  const results = allMatched.filter((a) => {
-    if (activeFilter === "all") return true;
-    if (activeFilter === "high") return a.risk_level === "HIGH";
-    if (activeFilter === "medium") return a.risk_level === "MEDIUM";
-    if (activeFilter === "low") return a.risk_level === "LOW";
-    return true;
-  });
-
-  const searchMode =
-    byDisease.length > 0
-      ? "disease"
-      : byLocation.length > 0
-        ? "location"
-        : "none";
-  const filteredCount = results.length;
-
-  return (
-    <div className="sr-backdrop" onClick={onClose}>
-      <div className="sr-overlay" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="sr-overlay-header">
-          <div className="sr-overlay-query">
-            <Search size={16} />
-            <span>
-              Kết quả tìm kiếm cho <strong>"{query}"</strong>
-            </span>
-            <span className="sr-total">{filteredCount} kết quả</span>
-          </div>
-          <button className="sr-close" onClick={onClose}>
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Filters */}
-        <div className="sr-filters">
-          {[
-            { key: "all", label: "Tất cả" },
-            { key: "high", label: "Rủi ro cao" },
-            { key: "medium", label: "Trung bình" },
-            { key: "low", label: "Thấp" },
-          ].map((f) => (
-            <button
-              key={f.key}
-              className={`sr-filter-btn ${activeFilter === f.key ? "active" : ""} ${f.key !== "all" ? f.key : ""}`}
-              onClick={() => setActiveFilter(f.key)}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Results */}
-        <div className="sr-results">
-          {results.length === 0 ? (
-            <div className="sr-empty">
-              <AlertCircle size={32} />
-              {searchMode === "none" ? (
-                <>
-                  <p>
-                    Không tìm thấy bệnh nào tên <strong>"{query}"</strong>
-                  </p>
-                  <span>
-                    Hệ thống chỉ tìm theo tên bệnh được NLP phân loại. Thử: "Sốt
-                    xuất huyết", "COVID-19", "Dịch tả lợn"...
-                  </span>
-                </>
-              ) : (
-                <>
-                  <p>
-                    Không có kết quả với bộ lọc{" "}
-                    <strong>"{activeFilter}"</strong>
-                  </p>
-                  <span>Thử chọn "Tất cả" hoặc bộ lọc mức rủi ro khác</span>
-                </>
-              )}
-            </div>
-          ) : (
-            results.map((a, idx) => (
-              <ResultCard key={a.article_id || idx} article={a} />
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ── Dropdown gợi ý ──
-const SearchDropdown = ({ suggestions, query, onSelect }) => {
-  if (!suggestions.length) return null;
-  return (
-    <div className="sr-dropdown">
-      {suggestions.map((s, idx) => (
-        <button key={idx} className="sr-suggestion" onClick={() => onSelect(s)}>
-          <Search size={13} />
-          <span
-            dangerouslySetInnerHTML={{
-              __html: s.replace(
-                new RegExp(`(${query})`, "gi"),
-                "<mark>$1</mark>",
-              ),
-            }}
-          />
-        </button>
-      ))}
-    </div>
-  );
-};
-
-// ── Article Row cho kết quả search thường ──
 const ArticleRow = ({ article }) => {
   const [imgError, setImgError] = useState(false);
   const riskColor = RISK_COLOR[article.risk_level] || RISK_COLOR.LOW;
@@ -414,15 +176,11 @@ const ArticleRow = ({ article }) => {
 const SearchContent = () => {
   const [searchParams] = useSearchParams();
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const [showOverlay, setShowOverlay] = useState(false);
-  const [suggestions, setSuggestions] = useState([]);
-  const inputRef = useRef(null);
-
   const {
     isLoading,
     searchQuery,
     setSearchQuery,
+    handleSearch,
     filters,
     updateFilter,
     resetFilters,
@@ -430,7 +188,7 @@ const SearchContent = () => {
     currentArticles,
     totalArticlesCount,
     pagination,
-    articles,
+    filteredArticles,
   } = useArticles();
 
   useEffect(() => {
@@ -441,15 +199,16 @@ const SearchContent = () => {
     }
   }, [searchParams]);
 
-  // ✅ Tính toán stats từ articles thực tế
   const stats = useMemo(() => {
-    if (!articles.length)
-      return { highRisk: 0, topDisease: null, topCount: 0, total_articles: 0 };
+    if (!filteredArticles.length)
+      return { highRisk: 0, topDisease: null, topCount: 0 };
 
-    const highRisk = articles.filter((a) => a.risk_level === "HIGH").length;
+    const highRisk = filteredArticles.filter(
+      (a) => a.risk_level === "HIGH",
+    ).length;
 
     const counts = {};
-    articles.forEach((a) => {
+    filteredArticles.forEach((a) => {
       if (a.disease_name)
         counts[a.disease_name] = (counts[a.disease_name] || 0) + 1;
     });
@@ -460,69 +219,11 @@ const SearchContent = () => {
       highRisk,
       topDisease: top?.[0] || null,
       topCount: top?.[1] || 0,
-      total_articles: articles.length,
+      total_articles: filteredArticles.length,
       top_keyword: top?.[0] || null,
       top_keyword_count: top?.[1] || 0,
     };
-  }, [articles]);
-
-  // ── LOGIC TỪ HEADER: Gợi ý từ disease_name ──
-  useEffect(() => {
-    if (!searchQuery.trim() || searchQuery.length < 2) {
-      setSuggestions([]);
-      return;
-    }
-    const normalize = (s) =>
-      (s || "")
-        .toLowerCase()
-        .replace(/[-\/().]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-    const nq = normalize(searchQuery);
-    const seen = new Set();
-    const sugg = [];
-    articles.forEach((a) => {
-      const name = a.disease_name;
-      if (!name) return;
-      const nd = normalize(name);
-      if (nd.includes(nq) && !seen.has(name)) {
-        seen.add(name);
-        sugg.push(name);
-      }
-    });
-    sugg.sort((a, b) => {
-      const na = normalize(a),
-        nb = normalize(b);
-      return (na.startsWith(nq) ? 0 : 1) - (nb.startsWith(nq) ? 0 : 1);
-    });
-    setSuggestions(sugg.slice(0, 6));
-  }, [searchQuery, articles]);
-
-  // ── LOGIC TỪ HEADER: Xử lý search ──
-  const handleSearchLocal = useCallback(
-    (q = searchQuery) => {
-      if (!q.trim()) return;
-      setShowOverlay(true);
-      setFocused(false);
-      inputRef.current?.blur();
-    },
-    [searchQuery],
-  );
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") handleSearchLocal();
-    if (e.key === "Escape") {
-      setFocused(false);
-      setSearchQuery("");
-    }
-  };
-
-  const handleSelectSuggestion = (s) => {
-    setSearchQuery(s);
-    handleSearchLocal(s);
-  };
-
-  const closeOverlay = () => setShowOverlay(false);
+  }, [filteredArticles]);
 
   return (
     <div className="search-tab-container">
@@ -560,40 +261,17 @@ const SearchContent = () => {
         )}
       </div>
 
-      {/* ── SEARCH BAR TỪ HEADER ── */}
       <div className="search-controls">
-        <div className={`search-bar ${focused ? "focused" : ""}`}>
-          <Search size={15} color="var(--text-muted)" />
+        <div className="search-input-box">
+          <Search className="icon-search" size={20} />
           <input
-            ref={inputRef}
             type="text"
-            placeholder="Tìm kiếm mầm bệnh, địa điểm..."
+            placeholder="Nhập từ khóa mầm bệnh (vd: covid) và ấn Enter..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setTimeout(() => setFocused(false), 150)}
-            onKeyDown={handleKeyDown}
+            onKeyDown={handleSearch}
           />
-          {searchQuery && (
-            <button
-              className="search-clear"
-              onClick={() => {
-                setSearchQuery("");
-                setSuggestions([]);
-              }}
-            >
-              <X size={13} />
-            </button>
-          )}
-          {focused && searchQuery.length >= 2 && (
-            <SearchDropdown
-              suggestions={suggestions}
-              query={searchQuery}
-              onSelect={handleSelectSuggestion}
-            />
-          )}
         </div>
-
         <div className="date-filters">
           {["Tất Cả", "7 Ngày Qua", "30 Ngày Qua"].map((range) => (
             <button
@@ -714,7 +392,7 @@ const SearchContent = () => {
         </div>
 
         <div className="side-column">
-          {/* Summary Stats Card */}
+          {/* ✅ FIX: Summary Stats Card */}
           <div className="card widget-card">
             <div className="widget-header">
               <h3>Tóm tắt Nhanh</h3>
@@ -754,13 +432,15 @@ const SearchContent = () => {
               ].map(({ label, key, color }) => {
                 const count =
                   key === "LOW"
-                    ? articles.filter(
+                    ? filteredArticles.filter(
                         (a) => !a.risk_level || a.risk_level === "LOW",
                       ).length
-                    : articles.filter((a) => a.risk_level === key).length;
+                    : filteredArticles.filter((a) => a.risk_level === key)
+                        .length;
+
                 const pct =
-                  articles.length > 0
-                    ? Math.round((count / articles.length) * 100)
+                  filteredArticles.length > 0
+                    ? Math.round((count / filteredArticles.length) * 100)
                     : 0;
 
                 return (
@@ -784,21 +464,11 @@ const SearchContent = () => {
               })}
             </div>
             <p className="risk-total">
-              Tổng cộng: <strong>{articles.length}</strong> bài đã phân tích
+              Tổng cộng: <strong>{totalArticlesCount}</strong> bài đã phân tích
             </p>
           </div>
         </div>
       </div>
-
-      {/* SEARCH OVERLAY */}
-      {showOverlay && (
-        <SearchOverlay
-          query={searchQuery}
-          articles={articles}
-          onClose={closeOverlay}
-        />
-      )}
-
       <FloatingChat
         stats={stats}
         analytics={{
