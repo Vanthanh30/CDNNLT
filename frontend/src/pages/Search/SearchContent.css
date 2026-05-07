@@ -6,10 +6,7 @@
   --text-main: #e2e8f0;
   --text-muted: #94a3b8;
   --accent-teal: #0ea5e9;
-  --accent-teal-bg: rgba(14, 165, 233, 0.1);
   --alert-red: #f43f5e;
-  --alert-red-bg: #ffe4e6;
-  --alert-red-dark: #3f1a26;
   --highlight-green: #10b981;
 }
 
@@ -31,13 +28,11 @@
   margin: 0 0 8px 0;
   letter-spacing: -0.5px;
 }
-
 .search-header p {
   color: var(--text-muted);
   margin: 0 0 24px 0;
   font-size: 14px;
 }
-
 .search-controls {
   display: flex;
   gap: 16px;
@@ -55,12 +50,10 @@
   padding: 0 16px;
   height: 44px;
 }
-
 .icon-search {
   color: var(--text-muted);
   margin-right: 12px;
 }
-
 .search-input-box input {
   background: transparent;
   border: none;
@@ -77,7 +70,6 @@
   border-radius: 8px;
   padding: 4px;
 }
-
 .filter-btn {
   background: transparent;
   border: none;
@@ -89,7 +81,6 @@
   cursor: pointer;
   transition: all 0.2s;
 }
-
 .filter-btn.active {
   background-color: #cbd5e1;
   color: #0f172a;
@@ -110,7 +101,6 @@
   cursor: pointer;
   transition: all 0.3s ease;
 }
-
 .advanced-btn.active-adv {
   background-color: var(--accent-teal);
   color: #fff;
@@ -129,13 +119,11 @@
   margin-bottom: 32px;
   animation: slideDown 0.3s ease-out forwards;
 }
-
 @keyframes slideDown {
   from {
     opacity: 0;
     transform: translateY(-10px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
@@ -148,15 +136,12 @@
   gap: 8px;
   flex: 1;
 }
-
 .filter-group label {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
-
 .filter-group select {
   background-color: var(--bg-dark);
   color: var(--text-main);
@@ -167,20 +152,9 @@
   outline: none;
   cursor: pointer;
   appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 16px;
-  padding-right: 36px;
 }
-
 .filter-group select:focus {
   border-color: var(--accent-teal);
-}
-
-.filter-group select:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .clear-filter-btn {
@@ -198,7 +172,6 @@
   cursor: pointer;
   transition: all 0.2s;
 }
-
 .clear-filter-btn:hover {
   background-color: var(--alert-red);
   color: #fff;
@@ -210,14 +183,12 @@
   grid-template-columns: 2fr 1fr;
   gap: 24px;
 }
-
 .card {
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 12px;
   overflow: hidden;
 }
-
 .main-column,
 .side-column {
   display: flex;
@@ -229,7 +200,6 @@
 .article-card {
   transition: all 0.2s;
 }
-
 .article-card:hover {
   border-color: var(--accent-teal);
   background-color: rgba(20, 30, 51, 0.8);
@@ -239,33 +209,28 @@
 .widget-card {
   padding: 20px;
 }
-
 .widget-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
 }
-
 .widget-header h3 {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
 }
 
-/* ✅ FIX: Summary Stats */
 .summary-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
-
 .summary-item {
   display: flex;
   gap: 12px;
   align-items: flex-start;
 }
-
 .stat-value {
   display: flex;
   align-items: center;
@@ -277,12 +242,10 @@
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
 }
-
 .stat-value.up {
   color: var(--highlight-green);
   background: rgba(16, 185, 129, 0.1);
 }
-
 .stat-value.danger {
   color: var(--alert-red);
   background: rgba(244, 63, 94, 0.1);
@@ -294,61 +257,16 @@
   gap: 4px;
   flex: 1;
 }
-
 .stat-text strong {
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-main);
 }
-
 .stat-text p {
   margin: 0;
   font-size: 13px;
   color: var(--text-muted);
-}
-
-/* Alert Card */
-.alert-card {
-  background-color: var(--alert-red-dark);
-  border: 1px solid rgba(244, 63, 94, 0.3);
-  padding: 20px;
-}
-
-.alert-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--alert-red);
-  font-size: 13px;
-  font-weight: 700;
-  margin-bottom: 12px;
-  letter-spacing: 0.5px;
-}
-
-.alert-card p {
-  font-size: 14px;
-  line-height: 1.5;
-  margin: 0 0 20px 0;
-  color: #f1f5f9;
-}
-
-.audit-btn {
-  width: 100%;
-  background-color: #fda4af;
-  color: #881337;
-  border: none;
-  padding: 12px;
-  border-radius: 6px;
-  font-weight: 700;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.audit-btn:hover {
-  background-color: #fbcfe8;
 }
 
 /* Risk Distribution */
@@ -358,42 +276,35 @@
   gap: 14px;
   margin-bottom: 16px;
 }
-
 .risk-row {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-
 .risk-label-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .risk-label {
   font-size: 12px;
   font-weight: 600;
 }
-
 .risk-count {
   font-size: 12px;
   color: var(--text-muted);
 }
-
 .risk-bar-bg {
   height: 8px;
   background-color: rgba(255, 255, 255, 0.05);
   border-radius: 4px;
   overflow: hidden;
 }
-
 .risk-bar-fill {
   height: 100%;
   border-radius: 4px;
   transition: width 0.3s ease;
 }
-
 .risk-total {
   margin: 0;
   padding-top: 12px;
@@ -401,7 +312,6 @@
   font-size: 11px;
   color: var(--text-muted);
 }
-
 .risk-total strong {
   color: var(--text-main);
 }
@@ -418,7 +328,6 @@
   border: 1px solid var(--card-border);
   border-radius: 12px;
 }
-
 .page-btn {
   display: flex;
   align-items: center;
@@ -433,19 +342,16 @@
   font-size: 14px;
   transition: all 0.2s;
 }
-
 .page-btn:hover:not(:disabled) {
   background-color: rgba(14, 165, 233, 0.1);
   color: var(--accent-teal);
   border-color: var(--accent-teal);
 }
-
 .page-btn:disabled {
   color: var(--text-muted);
   opacity: 0.5;
   cursor: not-allowed;
 }
-
 .page-info {
   font-size: 14px;
   color: var(--text-muted);
@@ -457,34 +363,27 @@
     grid-template-columns: 1fr;
   }
 }
-
 @media (max-width: 768px) {
   .search-tab-container {
     padding: 16px;
   }
-
   .search-controls {
     flex-direction: column;
   }
-
   .search-input-box,
   .advanced-btn {
     width: 100%;
   }
-
   .date-filters {
     width: 100%;
     justify-content: space-between;
   }
-
   .advanced-filters-panel {
     flex-direction: column;
   }
-
   .filter-group {
     width: 100%;
   }
-
   .clear-filter-btn {
     width: 100%;
     justify-content: center;

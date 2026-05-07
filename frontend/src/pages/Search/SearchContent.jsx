@@ -1,181 +1,16 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import {
-  Search,
-  Filter,
-  ArrowUp,
-  Zap,
-  TrendingUp,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  ExternalLink,
-} from "lucide-react";
+import { Search, Filter, ChevronLeft, ChevronRight, X } from "lucide-react";
 import FloatingChat from "../../components/FloatingChat/FloatingChat";
+import ArticleRow from "../../components/ArticleRow/ArticleRow";
 import { useArticles } from "../../hooks/useArticles";
 import "./SearchContent.css";
-
-const RISK_COLOR = { HIGH: "#ef4444", MEDIUM: "#f59e0b", LOW: "#10b981" };
-const RISK_LABEL = { HIGH: "Cao", MEDIUM: "Trung bình", LOW: "Thấp" };
-
-const getFavicon = (url) => {
-  try {
-    return `https://www.google.com/s2/favicons?domain=${new URL(url).origin}&sz=32`;
-  } catch {
-    return null;
-  }
-};
-
-const ArticleRow = ({ article }) => {
-  const [imgError, setImgError] = useState(false);
-  const riskColor = RISK_COLOR[article.risk_level] || RISK_COLOR.LOW;
-  const favicon = getFavicon(article.url);
-
-  return (
-    <div
-      className="card article-card"
-      style={{
-        display: "flex",
-        gap: "16px",
-        padding: "16px",
-        marginBottom: "12px",
-      }}
-    >
-      <div
-        style={{
-          flexShrink: 0,
-          width: "120px",
-          height: "90px",
-          borderRadius: "8px",
-          overflow: "hidden",
-          background: "#1e293b",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        {favicon && !imgError ? (
-          <img
-            src={favicon}
-            alt=""
-            style={{ width: "40px", height: "40px", opacity: 0.7 }}
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <span style={{ fontSize: "28px" }}>📰</span>
-        )}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            display: "flex",
-            gap: "8px",
-            alignItems: "center",
-            flexWrap: "wrap",
-            marginBottom: "6px",
-          }}
-        >
-          <span
-            style={{
-              color: riskColor,
-              borderColor: riskColor,
-              fontSize: "11px",
-              padding: "2px 8px",
-              border: "1px solid",
-              borderRadius: "4px",
-              fontWeight: "700",
-            }}
-          >
-            {(article.disease_name || "TIN TỨC CHUNG").toUpperCase()}
-          </span>
-          {article.location && (
-            <span style={{ fontSize: "11px", color: "#64748b" }}>
-              📍 {article.location}
-            </span>
-          )}
-          <span
-            style={{ fontSize: "11px", color: "#64748b", marginLeft: "auto" }}
-          >
-            {article.processed_at
-              ? new Date(article.processed_at).toLocaleDateString("vi-VN")
-              : "—"}
-          </span>
-        </div>
-        <h3 style={{ margin: "0 0 6px", fontSize: "14px", lineHeight: "1.4" }}>
-          <a
-            href={article.url}
-            target="_blank"
-            rel="noreferrer"
-            style={{ color: "inherit", textDecoration: "none" }}
-          >
-            {article.title || "Không có tiêu đề"}
-          </a>
-        </h3>
-        {article.summary && (
-          <p
-            style={{
-              fontSize: "12px",
-              color: "#94a3b8",
-              margin: "0 0 8px",
-              overflow: "hidden",
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-            }}
-          >
-            {article.summary}
-          </p>
-        )}
-        <div
-          style={{
-            display: "flex",
-            gap: "12px",
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          <span
-            style={{
-              fontSize: "12px",
-              color: riskColor,
-              fontWeight: "bold",
-              display: "flex",
-              gap: "4px",
-              alignItems: "center",
-            }}
-          >
-            <Zap size={13} /> Rủi ro: {RISK_LABEL[article.risk_level] || "Thấp"}
-          </span>
-          {(article.cases_infected > 0 || article.cases_dead > 0) && (
-            <span style={{ fontSize: "11px", color: "#64748b" }}>
-              🤒 {article.cases_infected ?? 0} nhiễm | 💀{" "}
-              {article.cases_dead ?? 0} tử vong
-            </span>
-          )}
-          <a
-            href={article.url}
-            target="_blank"
-            rel="noreferrer"
-            style={{
-              marginLeft: "auto",
-              fontSize: "11px",
-              color: "#3b82f6",
-              display: "flex",
-              gap: "4px",
-              alignItems: "center",
-            }}
-          >
-            Đọc bài gốc <ExternalLink size={12} />
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const SearchContent = () => {
   const [searchParams] = useSearchParams();
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Lấy toàn bộ dữ liệu và hàm từ Hook tổng
   const {
     isLoading,
     searchQuery,
@@ -191,32 +26,31 @@ const SearchContent = () => {
     filteredArticles,
   } = useArticles();
 
+  // 1. Tự động bật bộ lọc nếu URL có chứa ?location=... (Từ bản đồ trỏ sang)
   useEffect(() => {
     const loc = searchParams.get("location");
     if (loc) {
       updateFilter("location", loc);
-      setShowAdvanced(true);
+      setTimeout(() => {
+        setShowAdvanced(true);
+      }, 0);
     }
-  }, [searchParams]);
+  }, [searchParams, updateFilter]);
 
+  // 2. Tính toán thống kê cho cột bên phải (Chỉ dựa trên các bài viết đã lọc)
   const stats = useMemo(() => {
     if (!filteredArticles.length)
       return { highRisk: 0, topDisease: null, topCount: 0 };
-
-    const highRisk = filteredArticles.filter(
-      (a) => a.risk_level === "HIGH",
-    ).length;
 
     const counts = {};
     filteredArticles.forEach((a) => {
       if (a.disease_name)
         counts[a.disease_name] = (counts[a.disease_name] || 0) + 1;
     });
-
     const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
 
     return {
-      highRisk,
+      highRisk: filteredArticles.filter((a) => a.risk_level === "HIGH").length,
       topDisease: top?.[0] || null,
       topCount: top?.[1] || 0,
       total_articles: filteredArticles.length,
@@ -227,6 +61,7 @@ const SearchContent = () => {
 
   return (
     <div className="search-tab-container">
+      {/* ── HEADER & BỘ LỌC ── */}
       <div className="search-header">
         <h2>Công cụ Tìm kiếm Thông minh</h2>
         <p>Tổng hợp thông tin y tế và dịch bệnh từ các nguồn báo chí điện tử</p>
@@ -291,6 +126,7 @@ const SearchContent = () => {
         </button>
       </div>
 
+      {/* ── BỘ LỌC NÂNG CAO ── */}
       {showAdvanced && (
         <div className="advanced-filters-panel">
           <div className="filter-group">
@@ -339,7 +175,9 @@ const SearchContent = () => {
         </div>
       )}
 
+      {/* ── LƯỚI NỘI DUNG CHÍNH ── */}
       <div className="search-grid">
+        {/* Cột Trái: Danh sách bài báo */}
         <div className="main-column">
           {isLoading ? (
             <p
@@ -358,6 +196,8 @@ const SearchContent = () => {
               {currentArticles.map((art) => (
                 <ArticleRow key={art.article_id} article={art} />
               ))}
+
+              {/* Phân trang */}
               {pagination.totalPages > 1 && (
                 <div className="pagination">
                   <button
@@ -391,8 +231,8 @@ const SearchContent = () => {
           )}
         </div>
 
+        {/* Cột Phải: Sidebar Thống kê */}
         <div className="side-column">
-          {/* ✅ FIX: Summary Stats Card */}
           <div className="card widget-card">
             <div className="widget-header">
               <h3>Tóm tắt Nhanh</h3>
@@ -417,7 +257,6 @@ const SearchContent = () => {
             </div>
           </div>
 
-          {/* Risk Distribution Card */}
           <div className="card widget-card">
             <h3>Phân bố Mức độ Rủi ro</h3>
             <div className="risk-distribution">
@@ -437,7 +276,6 @@ const SearchContent = () => {
                       ).length
                     : filteredArticles.filter((a) => a.risk_level === key)
                         .length;
-
                 const pct =
                   filteredArticles.length > 0
                     ? Math.round((count / filteredArticles.length) * 100)
@@ -469,6 +307,8 @@ const SearchContent = () => {
           </div>
         </div>
       </div>
+
+      {/* ── CHATBOT ── */}
       <FloatingChat
         stats={stats}
         analytics={{
