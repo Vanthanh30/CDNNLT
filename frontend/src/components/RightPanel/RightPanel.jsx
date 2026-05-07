@@ -1,15 +1,25 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { articleService } from "../../services/api";
 import "./RightPanel.css";
 
+const RISK_COLOR = {
+  HIGH: { dot: "dot-red", text: "var(--accent-red)" },
+  MEDIUM: { dot: "dot-orange", text: "#f97316" },
+  LOW: { dot: "dot-blue", text: "var(--accent-cyan)" },
+};
+
 const RightPanel = () => {
+  const navigate = useNavigate();
   const [articles, setArticles] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchRecentArticles = async () => {
+    const fetchData = async () => {
       try {
         const data = await articleService.getAllArticles();
+        setTotalCount(data.length);
         setArticles(data.slice(0, 5));
       } catch (err) {
         console.error("Lỗi fetch:", err);
@@ -17,8 +27,7 @@ const RightPanel = () => {
         setLoading(false);
       }
     };
-
-    fetchRecentArticles();
+    fetchData();
   }, []);
 
   return (
@@ -36,37 +45,48 @@ const RightPanel = () => {
           ) : articles.length === 0 ? (
             <p>Chưa có dữ liệu</p>
           ) : (
-            articles.map((art) => (
-              <div className="update-item" key={art.id}>
-                <div className="dot dot-red"></div>
-                <div className="update-content">
-                  <h4 style={{ color: "var(--accent-cyan)" }}>
-                    {art.keywords || "Cập nhật chung"}
-                  </h4>
-                  <p>{art.title}</p>
-                  <span className="timestamp">
-                    {new Date(art.created_at).toLocaleTimeString("vi-VN")}
-                  </span>
-                  <a
-                    href={art.link}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      display: "block",
-                      fontSize: "0.7rem",
-                      color: "#3b82f6",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Đọc nguồn tin
-                  </a>
+            articles.map((art) => {
+              const risk = RISK_COLOR[art.risk_level] || RISK_COLOR.LOW;
+              return (
+                <div className="update-item" key={art.article_id}>
+                  <div className={`dot ${risk.dot}`}></div>
+                  <div className="update-content">
+                    <h4 style={{ color: risk.text }}>
+                      {art.disease_name
+                        ? `${art.disease_name}${art.location ? ` — ${art.location}` : ""}`
+                        : "Cập nhật chung"}
+                    </h4>
+                    <p>{art.title}</p>
+                    <span className="timestamp">
+                      {art.processed_at
+                        ? new Date(art.processed_at).toLocaleString("vi-VN")
+                        : "—"}
+                    </span>
+                    <a
+                      href={art.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: "block",
+                        fontSize: "0.7rem",
+                        color: "#3b82f6",
+                        marginTop: "4px",
+                      }}
+                    >
+                      Đọc nguồn tin ↗
+                    </a>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
-        <button className="view-log-btn">
-          XEM TẤT CẢ ({articles.length}) TIN TỨC
+
+        <button
+          className="view-log-btn"
+          onClick={() => navigate("/search")}
+        >
+          XEM TẤT CẢ ({totalCount}) TIN TỨC
         </button>
       </div>
     </div>

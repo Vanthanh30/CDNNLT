@@ -9,22 +9,22 @@ export const useArticles = () => {
 
   const [filters, setFilters] = useState({
     range: "Tất Cả",
-    source: "Tất Cả",
-    tag: "Tất Cả",
+    disease: "Tất Cả",
     location: "Tất Cả",
+    risk_level: "Tất Cả",
   });
 
   const [currentPage, setCurrentPage] = useState(1);
   const articlesPerPage = 5;
 
-  // Fetch initial data
-  const fetchArticles = async (fetchPromise) => {
+  const fetchArticles = async (promise) => {
     setIsLoading(true);
     try {
-      const data = await fetchPromise;
-      setArticles(data);
+      const data = await promise;
+      setArticles(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("API Error:", error);
+      setArticles([]);
     } finally {
       setIsLoading(false);
     }
@@ -36,11 +36,12 @@ export const useArticles = () => {
 
   const handleSearch = (e) => {
     if (e.key === "Enter") {
-      const promise =
-        searchQuery.trim() === ""
+      const q = searchQuery.trim();
+      fetchArticles(
+        q === ""
           ? articleService.getAllArticles()
-          : articleService.searchArticles(searchQuery);
-      fetchArticles(promise);
+          : articleService.filterArticles({ keyword: q }),
+      );
     }
   };
 
@@ -51,72 +52,88 @@ export const useArticles = () => {
   const resetFilters = () => {
     setFilters({
       range: "Tất Cả",
-      source: "Tất Cả",
-      tag: "Tất Cả",
+      disease: "Tất Cả",
       location: "Tất Cả",
+      risk_level: "Tất Cả",
     });
   };
 
-  // Extract unique options for dropdowns
+  // Unique options cho dropdowns — dùng field thật từ backend
   const uniqueOptions = useMemo(() => {
-    if (!articles.length) return { sources: [], tags: [] };
+    if (!articles.length) return { diseases: [], locations: [], tags: [] };
 
-    const sources = articles.map((art) => {
-      try {
-        return new URL(art.link).hostname.replace("www.", "");
-      } catch {
-        return "Khác";
-      }
-    });
+    const diseases = [
+      ...new Set(articles.map((a) => a.disease_name).filter(Boolean)),
+    ];
+    const locations = [
+      ...new Set(articles.map((a) => a.location).filter(Boolean)),
+    ];
+    const sources = [
+      ...new Set(
+        articles
+          .map((a) => {
+            try {
+              return new URL(a.url || "").hostname.replace("www.", "");
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean),
+      ),
+    ];
 
-    const tags = articles.map((art) =>
-      art.keywords ? art.keywords.split(",")[0].trim().toUpperCase() : "",
-    );
-
-    return {
-      sources: [...new Set(sources)].filter(Boolean),
-      tags: [...new Set(tags)].filter(Boolean),
-    };
+    return { diseases, locations, sources, tags: diseases };
   }, [articles]);
 
-  // Apply filters
+  // Apply local filters
   useEffect(() => {
     let result = articles;
     const now = new Date();
 
+    if (searchQuery.trim() !== "") {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter((a) => {
+        const titleMatch = a.title?.toLowerCase().includes(q);
+        const locationMatch = a.location?.toLowerCase().includes(q);
+        const diseaseMatch = a.disease_name?.toLowerCase().includes(q);
+
+        return titleMatch || locationMatch || diseaseMatch;
+      });
+    }
+
     if (filters.range === "7 Ngày Qua") {
       const limit = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      result = result.filter((art) => new Date(art.created_at) >= limit);
+      result = result.filter(
+        (a) => a.processed_at && new Date(a.processed_at) >= limit,
+      );
     } else if (filters.range === "30 Ngày Qua") {
       const limit = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      result = result.filter((art) => new Date(art.created_at) >= limit);
-    }
-
-    if (filters.source !== "Tất Cả") {
       result = result.filter(
-        (art) => art.link && art.link.includes(filters.source),
+        (a) => a.processed_at && new Date(a.processed_at) >= limit,
       );
     }
 
-    if (filters.tag !== "Tất Cả") {
-      result = result.filter(
-        (art) =>
-          art.keywords && art.keywords.toUpperCase().includes(filters.tag),
-      );
+    if (filters.disease !== "Tất Cả") {
+      result = result.filter((a) => a.disease_name === filters.disease);
+    }
+
+    if (filters.location !== "Tất Cả") {
+      result = result.filter((a) => a.location === filters.location);
+    }
+
+    if (filters.risk_level !== "Tất Cả") {
+      result = result.filter((a) => a.risk_level === filters.risk_level);
     }
 
     setFilteredArticles(result);
     setCurrentPage(1);
-  }, [articles, filters]);
+  }, [articles, filters, searchQuery]);
 
-  // Pagination calculations
-  const indexOfLastArticle = currentPage * articlesPerPage;
-  const indexOfFirstArticle = indexOfLastArticle - articlesPerPage;
-  const currentArticles = filteredArticles.slice(
-    indexOfFirstArticle,
-    indexOfLastArticle,
-  );
   const totalPages = Math.ceil(filteredArticles.length / articlesPerPage) || 1;
+  const currentArticles = filteredArticles.slice(
+    (currentPage - 1) * articlesPerPage,
+    currentPage * articlesPerPage,
+  );
 
   return {
     isLoading,
@@ -127,6 +144,8 @@ export const useArticles = () => {
     updateFilter,
     resetFilters,
     uniqueOptions,
+    articles,
+    filteredArticles,
     currentArticles,
     totalArticlesCount: filteredArticles.length,
     pagination: {

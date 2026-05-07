@@ -8,7 +8,7 @@ from mysql.connector import Error
 DB_HOST = "localhost"
 DB_PORT = 3306
 DB_USER = "root"
-DB_PASSWORD = ""
+DB_PASSWORD = "123456"
 DB_NAME = "disease_management"
 
 
@@ -29,7 +29,7 @@ def get_connection(retries=5, delay=2):
                 user=DB_USER,
                 password=DB_PASSWORD,
                 database=DB_NAME,
-                charset="utf8mb4"
+                charset="utf8mb4",
             )
         except Error as e:
             print(f"⚠️ Không kết nối được MySQL. Thử lại {attempt + 1}/{retries}: {e}")
@@ -54,6 +54,7 @@ def init_db():
 # CRAWLER SERVICE
 # =========================
 
+
 def get_or_create_source(name="Unknown", source_type="News Website"):
     conn = get_connection()
     if not conn:
@@ -73,7 +74,7 @@ def get_or_create_source(name="Unknown", source_type="News Website"):
 
     cursor.execute(
         "INSERT INTO SOURCE (id, name, type) VALUES (%s, %s, %s)",
-        (source_id, name, source_type)
+        (source_id, name, source_type),
     )
 
     conn.commit()
@@ -105,16 +106,7 @@ def save_raw_article(title, link, content, source_name="Unknown", published_at=N
         """
 
         cursor.execute(
-            query,
-            (
-                raw_id,
-                source_id,
-                link,
-                title,
-                content,
-                published_at,
-                content_hash
-            )
+            query, (raw_id, source_id, link, title, content, published_at, content_hash)
         )
 
         conn.commit()
@@ -136,6 +128,7 @@ def save_raw_article(title, link, content, source_name="Unknown", published_at=N
 # =========================
 # PROCESSOR SERVICE
 # =========================
+
 
 def get_unprocessed_articles(limit=10):
     """
@@ -161,7 +154,7 @@ def get_unprocessed_articles(limit=10):
         ORDER BY r.crawled_at ASC
         LIMIT %s
         """,
-        (limit,)
+        (limit,),
     )
 
     rows = cursor.fetchall()
@@ -192,10 +185,7 @@ def get_or_create_disease(name):
 
     disease_id = generate_id()
 
-    cursor.execute(
-        "INSERT INTO DISEASE (id, name) VALUES (%s, %s)",
-        (disease_id, name)
-    )
+    cursor.execute("INSERT INTO DISEASE (id, name) VALUES (%s, %s)", (disease_id, name))
 
     conn.commit()
     cursor.close()
@@ -224,10 +214,7 @@ def get_or_create_region(name):
 
     region_id = generate_id()
 
-    cursor.execute(
-        "INSERT INTO REGION (id, name) VALUES (%s, %s)",
-        (region_id, name)
-    )
+    cursor.execute("INSERT INTO REGION (id, name) VALUES (%s, %s)", (region_id, name))
 
     conn.commit()
     cursor.close()
@@ -246,7 +233,7 @@ def save_processed_article(
     risk_level="LOW",
     cases_infected=0,
     cases_dead=0,
-    cases_recovered=0
+    cases_recovered=0,
 ):
     """
     Lưu dữ liệu sau xử lý:
@@ -275,12 +262,7 @@ def save_processed_article(
             (id, raw_article_id, summary, content_clean, processed_at)
             VALUES (%s, %s, %s, %s, CURDATE())
             """,
-            (
-                article_id,
-                raw_article_id,
-                summary,
-                content_clean
-            )
+            (article_id, raw_article_id, summary, content_clean),
         )
 
         cursor.execute(
@@ -289,14 +271,7 @@ def save_processed_article(
             (id, article_id, region_id, disease_id, event_date, risk_level)
             VALUES (%s, %s, %s, %s, %s, %s)
             """,
-            (
-                event_id,
-                article_id,
-                region_id,
-                disease_id,
-                event_date,
-                risk_level
-            )
+            (event_id, article_id, region_id, disease_id, event_date, risk_level),
         )
 
         cursor.execute(
@@ -311,8 +286,8 @@ def save_processed_article(
                 region_id,
                 cases_infected,
                 cases_dead,
-                cases_recovered
-            )
+                cases_recovered,
+            ),
         )
 
         conn.commit()
@@ -332,6 +307,7 @@ def save_processed_article(
 # =========================
 # API GATEWAY
 # =========================
+
 
 def get_all_processed_articles(limit=100):
     conn = get_connection()
@@ -366,7 +342,7 @@ def get_all_processed_articles(limit=100):
         ORDER BY a.processed_at DESC
         LIMIT %s
         """,
-        (limit,)
+        (limit,),
     )
 
     rows = cursor.fetchall()
@@ -384,7 +360,7 @@ def filter_articles(
     from_date=None,
     to_date=None,
     risk_level=None,
-    limit=50
+    limit=50,
 ):
     conn = get_connection()
     if not conn:

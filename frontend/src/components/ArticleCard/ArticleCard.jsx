@@ -2,11 +2,18 @@ import React from "react";
 import { Zap } from "lucide-react";
 import "./ArticleCard.css";
 
+const RISK_COLOR = {
+  HIGH: "#ef4444",
+  MEDIUM: "#f59e0b",
+  LOW: "#10b981",
+};
+
 const ArticleCard = ({ article }) => {
-  const tag = article.keywords
-    ? article.keywords.split(",")[0].toUpperCase()
-    : "TIN TỨC";
-  const date = new Date(article.created_at).toLocaleDateString("vi-VN");
+  const tag = article.disease_name || "TIN TỨC CHUNG";
+  const date = article.processed_at
+    ? new Date(article.processed_at).toLocaleDateString("vi-VN")
+    : "—";
+  const color = RISK_COLOR[article.risk_level] || RISK_COLOR.LOW;
 
   return (
     <div className="card article-card">
@@ -15,26 +22,37 @@ const ArticleCard = ({ article }) => {
       </div>
       <div className="article-info">
         <div className="article-meta">
-          <span className="tag">{tag}</span>
+          <span className="tag" style={{ color, borderColor: color }}>
+            {tag.toUpperCase()}
+          </span>
           <span className="time">{date}</span>
         </div>
+
         <h3>
           <a
-            href={article.link}
+            href={article.url}
             target="_blank"
             rel="noreferrer"
             style={{ color: "inherit", textDecoration: "none" }}
           >
-            {article.title}
+            {article.title || "Không có tiêu đề"}
           </a>
         </h3>
+
         <div className="smart-summary">
           <Zap className="icon-zap" size={16} />
           <div>
-            <strong>AI PHÂN TÍCH TỪ KHÓA</strong>
-            <p style={{ color: "#f43f5e", fontWeight: "bold" }}>
-              {article.keywords || "Đang chờ NLP phân tích..."}
+            <strong>AI PHÂN TÍCH</strong>
+            <p style={{ color, fontWeight: "bold" }}>
+              {article.disease_name
+                ? `${article.disease_name}${article.location ? ` — ${article.location}` : ""}`
+                : "Đang chờ NLP phân tích..."}
             </p>
+            {(article.cases_infected > 0 || article.cases_dead > 0) && (
+              <p style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: "2px" }}>
+                🤒 Nhiễm: {article.cases_infected ?? 0} &nbsp;|&nbsp; 💀 Tử vong: {article.cases_dead ?? 0}
+              </p>
+            )}
           </div>
         </div>
       </div>
