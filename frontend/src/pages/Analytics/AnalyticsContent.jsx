@@ -1,15 +1,37 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import { MoreVertical, ChevronDown, X, Send, Bot, Tag, TrendingUp, FileText, AlertTriangle, Activity } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
-  BarChart, Bar, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend, Area, AreaChart,
+  X,
+  Tag,
+  TrendingUp,
+  FileText,
+  AlertTriangle,
+  Activity,
+} from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
 } from "recharts";
+import FloatingChat from "../../components/FloatingChat/FloatingChat";
 import "./AnalyticsContent.css";
 
 const API_BASE_URL = "http://localhost:8000";
 
-const PALETTE = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#f97316"];
+const PALETTE = [
+  "#6366f1",
+  "#10b981",
+  "#f59e0b",
+  "#ef4444",
+  "#8b5cf6",
+  "#06b6d4",
+  "#f97316",
+];
 
 // ===================== HELPERS =====================
 const fmtDate = (d) => {
@@ -78,127 +100,61 @@ const KeywordsModal = ({ keywords, onClose }) => {
     <div className="ac-modal-overlay" onClick={onClose}>
       <div className="ac-modal-box" onClick={(e) => e.stopPropagation()}>
         <div className="ac-modal-header">
-          <h3><Tag size={15} style={{ marginRight: 8 }} />Tất cả loại bệnh ({keywords.length})</h3>
-          <button className="ac-icon-btn" onClick={onClose}><X size={16} /></button>
+          <h3>
+            <Tag size={15} style={{ marginRight: 8 }} />
+            Tất cả loại bệnh ({keywords.length})
+          </h3>
+          <button className="ac-icon-btn" onClick={onClose}>
+            <X size={16} />
+          </button>
         </div>
         <div className="ac-modal-body">
           {keywords.length === 0 ? (
             <p className="ac-empty">Chưa có dữ liệu</p>
-          ) : keywords.map((kw, idx) => (
-            <div key={idx} className="ac-kw-row">
-              <div className="ac-kw-left">
-                <span className="ac-dot" style={{ background: PALETTE[idx % PALETTE.length] }} />
-                <span className="ac-kw-name">{kw.keyword}</span>
-                <span className="ac-kw-count">{kw.count} bài</span>
+          ) : (
+            keywords.map((kw, idx) => (
+              <div key={idx} className="ac-kw-row">
+                <div className="ac-kw-left">
+                  <span
+                    className="ac-dot"
+                    style={{ background: PALETTE[idx % PALETTE.length] }}
+                  />
+                  <span className="ac-kw-name">{kw.keyword}</span>
+                  <span className="ac-kw-count">{kw.count} bài</span>
+                </div>
+                <div className="ac-kw-bar-wrap">
+                  <div
+                    className="ac-kw-bar-fill"
+                    style={{
+                      width: `${Math.round((kw.count / max) * 100)}%`,
+                      background: PALETTE[idx % PALETTE.length],
+                    }}
+                  />
+                </div>
+                <span className="ac-kw-pct">
+                  {Math.round((kw.count / max) * 100)}%
+                </span>
               </div>
-              <div className="ac-kw-bar-wrap">
-                <div className="ac-kw-bar-fill" style={{
-                  width: `${Math.round((kw.count / max) * 100)}%`,
-                  background: PALETTE[idx % PALETTE.length],
-                }} />
-              </div>
-              <span className="ac-kw-pct">{Math.round((kw.count / max) * 100)}%</span>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-// ===================== CHAT BUBBLE =====================
-const ChatBubble = ({ stats, analytics, onClose }) => {
-  const [closing, setClosing] = useState(false);
-  const [messages, setMessages] = useState([{
-    id: 1, role: "ai",
-    text: `Xin chào! Tôi là Sentinel AI.\n\nĐã phân tích **${stats?.total_articles || 0} bài báo**. Bệnh nổi bật: **${stats?.top_keyword || "N/A"}** (${stats?.top_keyword_count || 0} bài).\n\nBạn muốn hỏi gì?`,
-  }]);
-  const [input, setInput] = useState("");
-  const [typing, setTyping] = useState(false);
-  const bottomRef = useRef(null);
-
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, typing]);
-
-  const send = async (quickText) => {
-    const text = quickText || input.trim();
-    if (!text || typing) return;
-    setInput("");
-    setMessages(prev => [...prev, { id: Date.now(), role: "user", text }]);
-    setTyping(true);
-    setTimeout(() => {
-      const kws = (analytics?.top_keywords || []).slice(0, 3).map(k => `${k.keyword} (${k.count} bài)`).join(", ");
-      const reply = `Dựa trên dữ liệu:\n- Tổng bài: **${stats?.total_articles || 0}**\n- Bệnh nổi bật: **${kws || "chưa có"}**\n- Bài 7 ngày gần đây: **${stats?.recent_7d || 0}**`;
-      setMessages(prev => [...prev, { id: Date.now() + 1, role: "ai", text: reply }]);
-      setTyping(false);
-    }, 1200);
-  };
-
-  const close = () => { setClosing(true); setTimeout(onClose, 220); };
-
-  const renderText = (text) =>
-    text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-      part.startsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : <span key={i}>{part}</span>
-    );
-
-  return (
-    <div className={`ac-chat-box ${closing ? "closing" : ""}`}>
-      <div className="ac-chat-header">
-        <div className="ac-bot-info">
-          <div className="ac-bot-avatar"><Bot size={16} /></div>
-          <div>
-            <p className="ac-bot-name">Sentinel AI</p>
-            <p className="ac-bot-status">● Đang hoạt động</p>
-          </div>
-        </div>
-        <button className="ac-icon-btn" onClick={close}><X size={15} /></button>
-      </div>
-      <div className="ac-chat-messages">
-        {messages.map(msg => (
-          <div key={msg.id} className={`ac-msg ${msg.role}`}>
-            {msg.role === "ai" && <div className="ac-msg-avatar"><Bot size={12} /></div>}
-            <div className="ac-msg-bubble">{renderText(msg.text)}</div>
-          </div>
-        ))}
-        {typing && (
-          <div className="ac-msg ai">
-            <div className="ac-msg-avatar"><Bot size={12} /></div>
-            <div className="ac-msg-bubble typing"><span /><span /><span /></div>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
-      <div className="ac-quick-btns">
-        {["Bệnh nào nhiều nhất?", "7 ngày gần đây?", "Khu vực đáng lo?"].map((q, i) => (
-          <button key={i} className="ac-quick" onClick={() => send(q)}>{q}</button>
-        ))}
-      </div>
-      <div className="ac-chat-input">
-        <textarea
-          placeholder="Hỏi về dịch bệnh... (Enter gửi)"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-          rows={1}
-        />
-        <button onClick={() => send()} disabled={typing || !input.trim()}><Send size={15} /></button>
-      </div>
-    </div>
-  );
-};
-
-// ===================== MAIN =====================
+// ===================== MAIN COMPONENT =====================
 const AnalyticsContent = () => {
   const [timeRange, setTimeRange] = useState(7);
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showKeywords, setShowKeywords] = useState(false);
-  const [showChat, setShowChat] = useState(false);
 
   useEffect(() => {
     setLoading(true);
     fetch(`${API_BASE_URL}/articles`)
-      .then(r => r.json())
-      .then(data => setArticles(Array.isArray(data) ? data : []))
+      .then((r) => r.json())
+      .then((data) => setArticles(Array.isArray(data) ? data : []))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -210,27 +166,39 @@ const AnalyticsContent = () => {
     const cutoff = getCutoff(timeRange);
     const cutoff7d = getCutoff(7);
 
-    // Sử dụng processed_at để lọc (thời điểm dữ liệu được xử lý/cào về)
-    const inRange = articles.filter(a => {
+    // Sử dụng processed_at để lọc
+    const inRange = articles.filter((a) => {
       const d = parseDate(a.processed_at);
       return d && d >= cutoff;
     });
 
-    const recent7d = articles.filter(a => {
+    const recent7d = articles.filter((a) => {
       const d = parseDate(a.processed_at);
       return d && d >= cutoff7d;
     }).length;
 
     // Disease counts toàn bộ
     const diseaseCounts = {};
-    articles.forEach(a => {
-      if (a.disease_name) diseaseCounts[a.disease_name] = (diseaseCounts[a.disease_name] || 0) + 1;
+    articles.forEach((a) => {
+      if (a.disease_name)
+        diseaseCounts[a.disease_name] =
+          (diseaseCounts[a.disease_name] || 0) + 1;
     });
-    const topEntries = Object.entries(diseaseCounts).sort((a, b) => b[1] - a[1]);
+    const topEntries = Object.entries(diseaseCounts).sort(
+      (a, b) => b[1] - a[1],
+    );
 
     // Sources
     const uniqueSources = new Set(
-      articles.map(a => { try { return new URL(a.url || "").hostname.replace("www.", ""); } catch { return null; } }).filter(Boolean)
+      articles
+        .map((a) => {
+          try {
+            return new URL(a.url || "").hostname.replace("www.", "");
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean),
     ).size;
 
     const computedStats = {
@@ -242,16 +210,16 @@ const AnalyticsContent = () => {
       top_keyword_count: topEntries[0]?.[1] || 0,
     };
 
-    // Daily counts — group theo ngày từ processed_at
+    // Daily counts — group theo ngày
     const dayMap = {};
-    inRange.forEach(a => {
+    inRange.forEach((a) => {
       const d = parseDate(a.processed_at);
       if (!d) return;
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       dayMap[key] = (dayMap[key] || 0) + 1;
     });
 
-    // Tạo đủ tất cả ngày trong khoảng (không bỏ sót ngày = 0)
+    // Tạo đủ tất cả ngày trong khoảng
     const allDays = [];
     const now = new Date();
     for (let i = timeRange - 1; i >= 0; i--) {
@@ -264,19 +232,21 @@ const AnalyticsContent = () => {
 
     // Top diseases trong khoảng
     const rangeDiseases = {};
-    inRange.forEach(a => {
-      if (a.disease_name) rangeDiseases[a.disease_name] = (rangeDiseases[a.disease_name] || 0) + 1;
+    inRange.forEach((a) => {
+      if (a.disease_name)
+        rangeDiseases[a.disease_name] =
+          (rangeDiseases[a.disease_name] || 0) + 1;
     });
     const topKeywords = Object.entries(rangeDiseases)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([keyword, count]) => ({ keyword, count }));
 
-    const top3 = topKeywords.slice(0, 3).map(k => k.keyword);
+    const top3 = topKeywords.slice(0, 3).map((k) => k.keyword);
 
-    // Line chart data: top 3 disease theo ngày
+    // Line chart data
     const lineMap = {};
-    inRange.forEach(a => {
+    inRange.forEach((a) => {
       if (!a.disease_name || !top3.includes(a.disease_name)) return;
       const d = parseDate(a.processed_at);
       if (!d) return;
@@ -286,7 +256,7 @@ const AnalyticsContent = () => {
     });
     const lineData = allDays.map(({ date }) => ({
       date,
-      ...Object.fromEntries(top3.map(k => [k, lineMap[date]?.[k] || 0])),
+      ...Object.fromEntries(top3.map((k) => [k, lineMap[date]?.[k] || 0])),
     }));
 
     // Risk score
@@ -306,44 +276,70 @@ const AnalyticsContent = () => {
     };
   }, [articles, timeRange]);
 
-  const riskInfo = analytics?.risk_score > 60
-    ? { text: "Cao", color: "#ef4444" }
-    : analytics?.risk_score > 30
-      ? { text: "Trung bình", color: "#f59e0b" }
-      : { text: "Thấp", color: "#10b981" };
+  const riskInfo =
+    analytics?.risk_score > 60
+      ? { text: "Cao", color: "#ef4444" }
+      : analytics?.risk_score > 30
+        ? { text: "Trung bình", color: "#f59e0b" }
+        : { text: "Thấp", color: "#10b981" };
 
   const timeLabel = timeRange === 1 ? "24 giờ qua" : `${timeRange} ngày qua`;
 
-  const forecastRows = (analytics?.top_keywords || []).slice(0, 5).map((kw, idx) => ({
-    ...kw,
-    pct: Math.round((kw.count / Math.max(analytics?.in_range || 1, 1)) * 100),
-    status: idx < 2 ? "Tăng" : "Theo dõi",
-    color: PALETTE[idx],
-  }));
+  const forecastRows = (analytics?.top_keywords || [])
+    .slice(0, 5)
+    .map((kw, idx) => ({
+      ...kw,
+      pct: Math.round((kw.count / Math.max(analytics?.in_range || 1, 1)) * 100),
+      status: idx < 2 ? "Tăng" : "Theo dõi",
+      color: PALETTE[idx],
+    }));
 
-  // Custom bar label
   const renderBarLabel = ({ x, y, width, value }) => {
     if (!value) return null;
-    return <text x={x + width / 2} y={y - 4} textAnchor="middle" fill="#94a3b8" fontSize={10}>{value}</text>;
+    return (
+      <text
+        x={x + width / 2}
+        y={y - 4}
+        textAnchor="middle"
+        fill="#94a3b8"
+        fontSize={10}
+      >
+        {value}
+      </text>
+    );
   };
 
   return (
     <div className="ac-body">
-      {showKeywords && <KeywordsModal keywords={analytics?.top_keywords || []} onClose={() => setShowKeywords(false)} />}
-      {showChat && <ChatBubble stats={stats} analytics={analytics} onClose={() => setShowChat(false)} />}
+      {showKeywords && (
+        <KeywordsModal
+          keywords={analytics?.top_keywords || []}
+          onClose={() => setShowKeywords(false)}
+        />
+      )}
 
       {/* ── HEADER ── */}
       <div className="ac-header">
         <div className="ac-header-left">
           <h1 className="ac-title">Phân tích & Xu hướng Dịch bệnh</h1>
           <p className="ac-subtitle">
-            {loading ? "Đang tải dữ liệu..." : `${analytics?.in_range ?? 0} bài trong ${timeLabel} · Tổng cộng ${stats?.total_articles ?? 0} bài`}
+            {loading
+              ? "Đang tải dữ liệu..."
+              : `${analytics?.in_range ?? 0} bài trong ${timeLabel} · Tổng cộng ${stats?.total_articles ?? 0} bài`}
           </p>
         </div>
         <div className="ac-header-right">
           <div className="ac-time-tabs">
-            {[{ l: "24H", v: 1 }, { l: "7 ngày", v: 7 }, { l: "30 ngày", v: 30 }].map(t => (
-              <button key={t.v} className={`ac-tab ${timeRange === t.v ? "active" : ""}`} onClick={() => setTimeRange(t.v)}>
+            {[
+              { l: "24H", v: 1 },
+              { l: "7 ngày", v: 7 },
+              { l: "30 ngày", v: 30 },
+            ].map((t) => (
+              <button
+                key={t.v}
+                className={`ac-tab ${timeRange === t.v ? "active" : ""}`}
+                onClick={() => setTimeRange(t.v)}
+              >
                 {t.l}
               </button>
             ))}
@@ -353,10 +349,34 @@ const AnalyticsContent = () => {
 
       {/* ── STAT CARDS ── */}
       <div className="ac-stats-row">
-        <StatCard icon={FileText} label="Bài trong kỳ" value={loading ? "…" : analytics?.in_range ?? 0} sub={timeLabel} color="#6366f1" />
-        <StatCard icon={Activity} label="Tổng bài báo" value={loading ? "…" : stats?.total_articles ?? 0} sub="Đã thu thập" color="#10b981" />
-        <StatCard icon={TrendingUp} label="Loại bệnh" value={loading ? "…" : analytics?.top_keywords?.length ?? 0} sub={`Trong ${timeLabel}`} color="#f59e0b" />
-        <StatCard icon={AlertTriangle} label="Mức độ rủi ro" value={loading ? "…" : riskInfo.text} sub={`${analytics?.risk_score ?? 0}% tỷ lệ bài mới`} color={riskInfo.color} />
+        <StatCard
+          icon={FileText}
+          label="Bài trong kỳ"
+          value={loading ? "…" : (analytics?.in_range ?? 0)}
+          sub={timeLabel}
+          color="#6366f1"
+        />
+        <StatCard
+          icon={Activity}
+          label="Tổng bài báo"
+          value={loading ? "…" : (stats?.total_articles ?? 0)}
+          sub="Đã thu thập"
+          color="#10b981"
+        />
+        <StatCard
+          icon={TrendingUp}
+          label="Loại bệnh"
+          value={loading ? "…" : (analytics?.top_keywords?.length ?? 0)}
+          sub={`Trong ${timeLabel}`}
+          color="#f59e0b"
+        />
+        <StatCard
+          icon={AlertTriangle}
+          label="Mức độ rủi ro"
+          value={loading ? "…" : riskInfo.text}
+          sub={`${analytics?.risk_score ?? 0}% tỷ lệ bài mới`}
+          color={riskInfo.color}
+        />
       </div>
 
       {/* ── MAIN GRID ── */}
@@ -373,8 +393,16 @@ const AnalyticsContent = () => {
               <div className="ac-skeleton" style={{ height: 220 }} />
             ) : analytics?.daily_counts?.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={analytics.daily_counts} margin={{ top: 20, right: 8, left: -24, bottom: 0 }} barSize={timeRange === 1 ? 40 : timeRange === 7 ? 28 : 12}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <BarChart
+                  data={analytics.daily_counts}
+                  margin={{ top: 20, right: 8, left: -24, bottom: 0 }}
+                  barSize={timeRange === 1 ? 40 : timeRange === 7 ? 28 : 12}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="rgba(255,255,255,0.05)"
+                    vertical={false}
+                  />
                   <XAxis
                     dataKey="date"
                     stroke="#4b5563"
@@ -390,12 +418,23 @@ const AnalyticsContent = () => {
                     tickLine={false}
                     allowDecimals={false}
                   />
-                  <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-                  <Bar dataKey="count" name="Bài báo" fill="#6366f1" radius={[4, 4, 0, 0]} label={timeRange <= 7 ? renderBarLabel : false} />
+                  <Tooltip
+                    content={<CustomTooltip />}
+                    cursor={{ fill: "rgba(255,255,255,0.03)" }}
+                  />
+                  <Bar
+                    dataKey="count"
+                    name="Bài báo"
+                    fill="#6366f1"
+                    radius={[4, 4, 0, 0]}
+                    label={timeRange <= 7 ? renderBarLabel : false}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="ac-empty-chart">Không có dữ liệu trong khoảng này</div>
+              <div className="ac-empty-chart">
+                Không có dữ liệu trong khoảng này
+              </div>
             )}
           </div>
 
@@ -406,7 +445,10 @@ const AnalyticsContent = () => {
               <div className="ac-legend">
                 {(analytics?.top3 || []).map((kw, i) => (
                   <span key={i} className="ac-legend-item">
-                    <span className="ac-legend-dot" style={{ background: PALETTE[i] }} />
+                    <span
+                      className="ac-legend-dot"
+                      style={{ background: PALETTE[i] }}
+                    />
                     {kw}
                   </span>
                 ))}
@@ -414,10 +456,18 @@ const AnalyticsContent = () => {
             </div>
             {loading ? (
               <div className="ac-skeleton" style={{ height: 200 }} />
-            ) : analytics?.line_data?.length > 0 && analytics?.top3?.length > 0 ? (
+            ) : analytics?.line_data?.length > 0 &&
+              analytics?.top3?.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={analytics.line_data} margin={{ top: 10, right: 8, left: -24, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <LineChart
+                  data={analytics.line_data}
+                  margin={{ top: 10, right: 8, left: -24, bottom: 0 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="rgba(255,255,255,0.05)"
+                    vertical={false}
+                  />
                   <XAxis
                     dataKey="date"
                     stroke="#4b5563"
@@ -448,7 +498,9 @@ const AnalyticsContent = () => {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="ac-empty-chart">Không đủ dữ liệu để vẽ biểu đồ</div>
+              <div className="ac-empty-chart">
+                Không đủ dữ liệu để vẽ biểu đồ
+              </div>
             )}
           </div>
         </div>
@@ -467,18 +519,33 @@ const AnalyticsContent = () => {
             ) : (
               <div className="ac-rankings">
                 {(analytics?.top_keywords || []).slice(0, 6).map((kw, idx) => {
-                  const pct = Math.round((kw.count / Math.max(analytics?.top_keywords?.[0]?.count || 1, 1)) * 100);
+                  const pct = Math.round(
+                    (kw.count /
+                      Math.max(analytics?.top_keywords?.[0]?.count || 1, 1)) *
+                      100,
+                  );
                   return (
                     <div key={idx} className="ac-rank-item">
                       <div className="ac-rank-top">
                         <div className="ac-rank-name">
-                          <span className="ac-dot" style={{ background: PALETTE[idx % PALETTE.length] }} />
+                          <span
+                            className="ac-dot"
+                            style={{
+                              background: PALETTE[idx % PALETTE.length],
+                            }}
+                          />
                           <span>{kw.keyword}</span>
                         </div>
                         <span className="ac-rank-count">{kw.count} bài</span>
                       </div>
                       <div className="ac-rank-bar">
-                        <div className="ac-rank-fill" style={{ width: `${pct}%`, background: PALETTE[idx % PALETTE.length] }} />
+                        <div
+                          className="ac-rank-fill"
+                          style={{
+                            width: `${pct}%`,
+                            background: PALETTE[idx % PALETTE.length],
+                          }}
+                        />
                       </div>
                     </div>
                   );
@@ -492,15 +559,24 @@ const AnalyticsContent = () => {
               <h3>Danh mục bệnh</h3>
             </div>
             <div className="ac-tags">
-              {loading ? <div className="ac-skeleton" style={{ height: 60 }} /> :
+              {loading ? (
+                <div className="ac-skeleton" style={{ height: 60 }} />
+              ) : (
                 (analytics?.top_keywords || []).slice(0, 8).map((kw, idx) => (
-                  <span key={idx} className="ac-tag" style={{ "--tag-color": PALETTE[idx % PALETTE.length] }}>
+                  <span
+                    key={idx}
+                    className="ac-tag"
+                    style={{ "--tag-color": PALETTE[idx % PALETTE.length] }}
+                  >
                     {kw.keyword} <em>{kw.count}</em>
                   </span>
                 ))
-              }
+              )}
             </div>
-            <button className="ac-expand-btn" onClick={() => setShowKeywords(true)}>
+            <button
+              className="ac-expand-btn"
+              onClick={() => setShowKeywords(true)}
+            >
               Xem tất cả →
             </button>
           </div>
@@ -511,7 +587,9 @@ const AnalyticsContent = () => {
       <div className="ac-panel ac-table-panel">
         <div className="ac-panel-header">
           <h3>Bảng chi tiết bệnh nổi bật</h3>
-          <span className="ac-panel-meta">{timeLabel} · {analytics?.in_range || 0} bài</span>
+          <span className="ac-panel-meta">
+            {timeLabel} · {analytics?.in_range || 0} bài
+          </span>
         </div>
         <div className="ac-table-wrap">
           <table className="ac-table">
@@ -526,40 +604,60 @@ const AnalyticsContent = () => {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} className="ac-table-empty">Đang tải...</td></tr>
-              ) : forecastRows.length === 0 ? (
-                <tr><td colSpan={5} className="ac-table-empty">Không có dữ liệu trong khoảng này</td></tr>
-              ) : forecastRows.map((row, idx) => (
-                <tr key={idx}>
-                  <td>
-                    <div className="ac-disease-name">
-                      <span className="ac-dot" style={{ background: row.color }} />
-                      {row.keyword}
-                    </div>
+                <tr>
+                  <td colSpan={5} className="ac-table-empty">
+                    Đang tải...
                   </td>
-                  <td><strong>{row.count}</strong></td>
-                  <td>
-                    <div className="ac-pct-bar">
-                      <div className="ac-pct-fill" style={{ width: `${row.pct}%`, background: row.color }} />
-                      <span>{row.pct}%</span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`ac-badge ${idx < 2 ? "red" : "blue"}`}>{row.status}</span>
-                  </td>
-                  <td className="ac-table-meta">{timeLabel}</td>
                 </tr>
-              ))}
+              ) : forecastRows.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="ac-table-empty">
+                    Không có dữ liệu trong khoảng này
+                  </td>
+                </tr>
+              ) : (
+                forecastRows.map((row, idx) => (
+                  <tr key={idx}>
+                    <td>
+                      <div className="ac-disease-name">
+                        <span
+                          className="ac-dot"
+                          style={{ background: row.color }}
+                        />
+                        {row.keyword}
+                      </div>
+                    </td>
+                    <td>
+                      <strong>{row.count}</strong>
+                    </td>
+                    <td>
+                      <div className="ac-pct-bar">
+                        <div
+                          className="ac-pct-fill"
+                          style={{
+                            width: `${row.pct}%`,
+                            background: row.color,
+                          }}
+                        />
+                        <span>{row.pct}%</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`ac-badge ${idx < 2 ? "red" : "blue"}`}>
+                        {row.status}
+                      </span>
+                    </td>
+                    <td className="ac-table-meta">{timeLabel}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* ── FLOATING AI ── */}
-      <button className={`ac-fab ${showChat ? "active" : ""}`} onClick={() => setShowChat(!showChat)}>
-        <Bot size={17} />
-        <span>Sentinel AI</span>
-      </button>
+      {/* ── FLOATING AI CHATBOT ── */}
+      <FloatingChat stats={stats} analytics={analytics} />
     </div>
   );
 };

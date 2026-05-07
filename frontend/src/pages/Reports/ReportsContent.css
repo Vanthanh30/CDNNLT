@@ -1,488 +1,465 @@
-.reports-inner-body {
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow-x: hidden;
+/* =========================================
+   CONTAINER & LAYOUT CHÍNH
+========================================= */
+.risk-report-container {
+  padding: 24px 32px;
+  color: #cbd5e1;
+  font-family: "Inter", system-ui, sans-serif;
+  height: 100%;
+  overflow-y: auto;
 }
 
-/* HEADER */
-.reports-header {
-  margin-bottom: 8px;
+.report-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 24px;
+  align-items: start;
 }
 
-.reports-header h1 {
+/* =========================================
+   HEADER TRONG CỘT TRÁI
+========================================= */
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.header-titles h1 {
   font-size: 24px;
   font-weight: 600;
-  margin: 0 0 8px 0;
+  color: #f8fafc;
+  margin: 0 0 6px 0;
 }
 
-.reports-header p {
+.header-titles p {
   font-size: 14px;
-  color: var(--text-muted);
+  color: #94a3b8;
   margin: 0;
 }
 
-/* MAIN GRID */
-.reports-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr);
-  gap: 24px;
-  width: 100%;
-}
-
-/* === LEFT COLUMN === */
-.left-column {
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-  min-width: 0;
-}
-
-.right-column {
-  min-width: 0;
-}
-
-/* METRICS ROW */
-.metrics-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
-}
-
-.metric-card {
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 12px;
-  padding: 20px;
-}
-
-.card-title {
-  font-size: 11px;
-  color: var(--text-muted);
-  font-weight: 600;
-  letter-spacing: 0.5px;
+.btn-export-main {
+  background-color: #dbeafe;
+  color: #1e3a8a;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 13px;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 20px;
-}
-
-/* Biometrics specific */
-.bio-item {
-  margin-bottom: 16px;
-}
-
-.bio-item:last-child {
-  margin-bottom: 0;
-}
-
-.bio-label {
-  font-size: 10px;
-  color: var(--text-muted);
-  margin-bottom: 6px;
-  display: block;
-}
-
-.bio-value-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-}
-
-.bio-value {
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.bio-unit {
-  font-size: 14px;
-  color: var(--text-muted);
-  margin-left: 4px;
-}
-
-.status-badge {
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.status-badge.stable {
-  background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
-}
-
-.status-badge.critical {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-}
-
-/* AI Recs specific */
-.ai-rec-box {
-  background: rgba(16, 185, 129, 0.05);
-  border-left: 3px solid #10b981;
-  padding: 12px 16px;
-  border-radius: 4px 8px 8px 4px;
-  font-size: 13px;
-  line-height: 1.5;
-  margin-bottom: 12px;
-}
-
-.ai-rec-subtext {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-style: italic;
-  line-height: 1.5;
-}
-
-/* EDITOR SECTION */
-.section-title {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 16px;
-}
-
-.editor-container {
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.editor-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--panel-border);
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.toolbar-tools {
-  display: flex;
-  gap: 16px;
-  color: var(--text-muted);
-}
-
-.toolbar-tools button {
-  background: none;
-  border: none;
-  color: inherit;
   cursor: pointer;
-  padding: 4px;
+  transition: all 0.2s ease;
 }
 
-.toolbar-tools button:hover {
-  color: var(--text-main);
+.btn-export-main:hover {
+  background-color: #bfdbfe;
 }
 
-.toolbar-actions {
+/* =========================================
+   CỘT BÊN TRÁI (LEFT PANEL)
+========================================= */
+.panel-card {
+  background-color: #1e293b;
+  border-radius: 12px;
+  padding: 32px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.summary-title-group {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  margin-bottom: 24px;
 }
 
-.word-count {
-  font-size: 11px;
-  color: var(--text-muted);
+.summary-title-group h3 {
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: #94a3b8;
+  margin: 0;
 }
 
-.btn-generate {
-  background: rgba(59, 130, 246, 0.1);
-  color: var(--accent-blue);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+.risk-badge {
   padding: 6px 12px;
   border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.editor-content {
-  padding: 20px;
-  font-size: 13px;
-  line-height: 1.6;
-  color: #e2e8f0;
-  min-height: 200px;
-  outline: none;
-}
-
-.editor-content ol {
-  padding-left: 20px;
-  margin: 12px 0;
-}
-
-/* HISTORY SECTION */
-.history-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.history-card {
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  padding: 16px;
-}
-
-.h-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.h-status {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.5px;
 }
 
-.h-status.complete {
-  color: #10b981;
+.risk-badge.critical {
+  background-color: rgba(153, 27, 27, 0.2);
+  color: #fca5a5;
+  border: 1px solid rgba(248, 113, 113, 0.3);
 }
 
-.h-status.urgent {
-  color: #f59e0b;
+.risk-badge.warning {
+  background-color: rgba(180, 83, 9, 0.2);
+  color: #fcd34d;
+  border: 1px solid rgba(251, 191, 36, 0.3);
 }
 
-.h-status.draft {
-  color: var(--text-muted);
+.meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 40px;
 }
 
-.h-time {
-  font-size: 10px;
-  color: var(--text-muted);
-}
-
-.h-title {
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-
-.h-desc {
-  font-size: 11px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* === RIGHT COLUMN (CHAT) === */
-.chat-panel {
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 12px;
+.meta-item {
   display: flex;
   flex-direction: column;
-  height: 700px;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.chat-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--panel-border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.chat-bot-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.bot-avatar {
-  width: 32px;
-  height: 32px;
-  background: var(--accent-blue);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-}
-
-.bot-details h3 {
-  font-size: 13px;
-  margin: 0 0 4px 0;
-}
-
-.bot-status {
-  font-size: 9px;
-  color: #10b981;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
   gap: 4px;
 }
 
-.bot-status .dot {
-  width: 6px;
-  height: 6px;
-  background: #10b981;
-  border-radius: 50%;
+.meta-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+  letter-spacing: 0.5px;
 }
 
-.chat-body {
-  flex: 1;
-  padding: 20px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+.meta-value {
+  font-size: 14px;
+  color: #f8fafc;
+  font-weight: 500;
 }
 
-.msg-wrapper {
-  display: flex;
-  flex-direction: column;
-}
-
-.msg-wrapper.ai {
-  align-items: flex-start;
-}
-
-.msg-wrapper.user {
-  align-items: flex-end;
-}
-
-.msg-bubble {
-  padding: 12px 16px;
-  border-radius: 12px;
-  font-size: 13px;
-  line-height: 1.5;
-  max-width: 85%;
-}
-
-.msg-wrapper.ai .msg-bubble {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--panel-border);
-  border-top-left-radius: 4px;
-}
-
-.msg-wrapper.user .msg-bubble {
-  background: var(--accent-blue);
-  color: white;
-  border-top-right-radius: 4px;
-}
-
-.msg-time {
-  font-size: 10px;
-  color: var(--text-muted);
-  margin-top: 6px;
-}
-
-/* Insight Card inside chat */
-.insight-card {
-  background: rgba(16, 185, 129, 0.05);
-  border: 1px solid rgba(16, 185, 129, 0.2);
-  border-radius: 8px;
-  padding: 16px;
-  margin-top: 10px;
-}
-
-.insight-header {
+/* Narrative Section (Quan sát lâm sàng) */
+.section-heading {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: #10b981;
-  font-size: 10px;
-  font-weight: 700;
-  margin-bottom: 8px;
-}
-
-.insight-text {
-  font-size: 12px;
-  color: #e2e8f0;
-  line-height: 1.5;
+  gap: 10px;
   margin-bottom: 16px;
 }
 
-.insight-actions {
-  display: flex;
-  gap: 10px;
+.section-heading h4 {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: #f8fafc;
 }
 
-.btn-action {
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  color: var(--text-main);
-  padding: 6px 12px;
+.section-heading.small h4 {
+  font-size: 11px;
+  color: #94a3b8;
+  letter-spacing: 0.5px;
+}
+
+.bullet-point {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #38bdf8;
+}
+
+.narrative-content {
+  background-color: rgba(15, 23, 42, 0.4);
+  padding: 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #cbd5e1;
+  margin-bottom: 40px;
+}
+
+.narrative-content p {
+  margin: 0 0 16px 0;
+}
+.narrative-content p:last-child {
+  margin: 0;
+}
+.narrative-content ul {
+  margin: 0 0 16px 0;
+  padding-left: 20px;
+}
+.narrative-content li {
+  margin-bottom: 6px;
+}
+
+.bold-label {
+  font-weight: 600;
+  color: #f8fafc;
+  margin-bottom: 8px !important;
+}
+
+.recommendation-text {
+  font-style: italic;
+  color: #94a3b8;
+}
+
+/* Signature Box */
+.signature-box {
+  margin-top: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed #475569;
+  margin-bottom: 16px;
+}
+
+.sig-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.sig-text {
+  font-family: "Dancing Script", "Brush Script MT", cursive;
+  font-size: 20px;
+  color: #64748b;
+  opacity: 0.5;
+}
+
+.sig-hash {
+  font-size: 11px;
+  font-family: monospace;
+  color: #64748b;
+}
+
+.footer-warning {
+  font-size: 10px;
+  color: #475569;
+  text-align: center;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* =========================================
+   CỘT BÊN PHẢI (RIGHT PANEL & WIDGETS)
+========================================= */
+.forecast-header {
+  margin-bottom: 24px;
+}
+
+.forecast-header h2 {
+  font-size: 20px;
+  color: #f8fafc;
+  margin: 0 0 8px 0;
+}
+
+.forecast-header p {
+  font-size: 13px;
+  color: #94a3b8;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Cấu trúc dùng chung cho 3 Widget con */
+.chart-card,
+.factors-card,
+.insights-card {
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.chart-card:hover,
+.factors-card:hover,
+.insights-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+/* Widget 1: Biểu đồ (Chart) */
+.chart-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.chart-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: 0.5px;
+}
+
+.chart-badge {
+  background-color: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  padding: 4px 8px;
   border-radius: 4px;
   font-size: 10px;
-  font-weight: 600;
-  cursor: pointer;
+  font-weight: 700;
 }
 
-.btn-action.primary {
-  background: rgba(59, 130, 246, 0.1);
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
-}
-
-.processing-text {
-  font-size: 11px;
-  color: var(--text-muted);
-  font-style: italic;
+.bar-chart-area {
   display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  height: 180px;
+  padding-top: 20px;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 8px;
+}
+
+.bar-col {
+  display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 8px;
+  width: 10%;
+  height: 100%;
+  justify-content: flex-end;
 }
 
-.chat-input-area {
-  padding: 16px;
-  border-top: 1px solid var(--panel-border);
+.bar {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  background-color: #475569;
+  transition: all 0.3s ease;
 }
 
-.input-box {
-  background: #0f172a;
-  border: 1px solid var(--panel-border);
-  border-radius: 24px;
-  padding: 8px 16px;
+.bar-col span {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+/* Hardcode chiều cao thanh bar */
+.b1 {
+  height: 30%;
+  background-color: #475569;
+}
+.b2 {
+  height: 45%;
+  background-color: #475569;
+}
+.b3 {
+  height: 55%;
+  background-color: #64748b;
+}
+.b4 {
+  height: 80%;
+  background-color: #38bdf8;
+}
+.b5 {
+  height: 95%;
+  background-color: #2dd4bf;
+}
+.b6 {
+  height: 70%;
+  background-color: #34d399;
+}
+.b7 {
+  height: 85%;
+  background-color: #6ee7b7;
+}
+
+/* Widget 2: Phân tích yếu tố (Factors/Progress Bars) */
+.factor-item {
+  margin-bottom: 16px;
+}
+
+.factor-item:last-child {
+  margin-bottom: 0;
+}
+
+.factor-labels {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: #cbd5e1;
+  margin-bottom: 8px;
 }
 
-.input-box input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  color: var(--text-main);
-  font-size: 13px;
-  outline: none;
+.progress-track {
+  width: 100%;
+  height: 6px;
+  background-color: #0f172a;
+  border-radius: 3px;
+  overflow: hidden;
 }
 
-.send-btn {
-  width: 32px;
-  height: 32px;
-  background: var(--accent-blue);
-  border: none;
+.progress-fill {
+  height: 100%;
+  border-radius: 3px;
+}
+.progress-fill.coral {
+  background-color: #f87171;
+}
+.progress-fill.teal {
+  background-color: #2dd4bf;
+}
+.progress-fill.blue {
+  background-color: #60a5fa;
+}
+
+/* Widget 3: Thông tin dự báo (Insights & Export) */
+.insight-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px 0;
+}
+
+.insight-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.insight-list li:last-child {
+  margin-bottom: 0;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  color: white;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+.dot.red {
+  background-color: #ef4444;
+}
+.dot.teal {
+  background-color: #2dd4bf;
+}
+
+.insight-list p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #cbd5e1;
+}
+
+.insight-list strong {
+  color: #f8fafc;
+}
+
+.btn-export-data {
+  width: 100%;
+  background-color: rgba(15, 23, 42, 0.6);
+  color: #94a3b8;
+  border: 1px solid #334155;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
+  gap: 8px;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.disclaimer {
-  text-align: center;
-  font-size: 9px;
-  color: var(--text-muted);
-  margin-top: 12px;
-}
-
-.insight-text,
-.insight-text a,
-.msg-bubble,
-.editor-content {
-  word-wrap: break-word;
-  overflow-wrap: anywhere;
-  word-break: break-all;
-  white-space: normal;
+.btn-export-data:hover {
+  background-color: #0f172a;
+  color: #f8fafc;
+  border-color: #475569;
 }
