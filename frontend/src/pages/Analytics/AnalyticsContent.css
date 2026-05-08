@@ -35,7 +35,7 @@
   margin: 0;
 }
 
-/* Time tabs */
+/* ── TIME TABS ── */
 .ac-time-tabs {
   display: flex;
   background: #111827;
@@ -54,7 +54,7 @@
   font-weight: 500;
   cursor: pointer;
   border-radius: 6px;
-  transition: all 0.18s ease;
+  transition: color 0.18s ease;
   font-family: inherit;
 }
 
@@ -95,11 +95,6 @@
   flex-shrink: 0;
 }
 
-.ac-stat-body {
-  flex: 1;
-  min-width: 0;
-}
-
 .ac-stat-label {
   font-size: 11px;
   color: #6b7280;
@@ -123,7 +118,7 @@
   margin: 0;
 }
 
-/* ── GRID ── */
+/* ── LAYOUT GRID ── */
 .ac-grid {
   display: grid;
   grid-template-columns: 1fr 300px;
@@ -131,12 +126,7 @@
   margin-bottom: 16px;
 }
 
-.ac-col-main {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
+.ac-col-main,
 .ac-col-side {
   display: flex;
   flex-direction: column;
@@ -174,10 +164,9 @@
 .ac-panel-meta {
   font-size: 11px;
   color: #4b5563;
-  font-weight: 400;
 }
 
-/* Legend */
+/* ── LEGEND ── */
 .ac-legend {
   display: flex;
   gap: 14px;
@@ -208,15 +197,16 @@
 }
 
 @keyframes skeleton-wave {
-  0% {
+  from {
     background-position: 200% 0;
   }
-  100% {
+
+  to {
     background-position: -200% 0;
   }
 }
 
-/* ── EMPTY ── */
+/* ── EMPTY STATES ── */
 .ac-empty-chart {
   height: 180px;
   display: flex;
@@ -234,7 +224,7 @@
   margin: 0;
 }
 
-/* ── RANKING ── */
+/* ── RANKINGS ── */
 .ac-rankings {
   display: flex;
   flex-direction: column;
@@ -329,10 +319,6 @@
 }
 
 /* ── TABLE ── */
-.ac-table-panel {
-  margin-top: 0;
-}
-
 .ac-table-wrap {
   overflow-x: auto;
 }
@@ -382,7 +368,7 @@
   gap: 10px;
 }
 
-.ac-pct-bar > div {
+.ac-pct-bar>div {
   flex: 1;
   height: 5px;
   background: rgba(255, 255, 255, 0.05);
@@ -464,7 +450,7 @@
   flex-shrink: 0;
 }
 
-/* ── MODAL (Keywords) ── */
+/* ── MODAL ── */
 .ac-modal-overlay {
   position: fixed;
   inset: 0;
@@ -565,7 +551,7 @@
   text-align: right;
 }
 
-/* ── RESPONSIVE BẢNG VÀ GRID ── */
+/* ── RESPONSIVE ── */
 @media (max-width: 1100px) {
   .ac-grid {
     grid-template-columns: 1fr;
@@ -582,6 +568,7 @@
   .ac-body {
     padding: 16px 16px 80px;
   }
+
   .ac-header {
     flex-direction: column;
     align-items: flex-start;

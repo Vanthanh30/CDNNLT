@@ -32,10 +32,10 @@ def get_connection(retries=5, delay=2):
                 charset="utf8mb4",
             )
         except Error as e:
-            print(f"⚠️ Không kết nối được MySQL. Thử lại {attempt + 1}/{retries}: {e}")
+            print(f"Không kết nối được MySQL. Thử lại {attempt + 1}/{retries}: {e}")
             time.sleep(delay)
 
-    print("❌ Không thể kết nối MySQL")
+    print("Không thể kết nối MySQL")
     return None
 
 
@@ -47,7 +47,7 @@ def init_db():
     conn = get_connection()
     if conn:
         conn.close()
-        print("✅ Kết nối database disease_management thành công")
+        print("Kết nối database disease_management thành công")
 
 
 # =========================
@@ -106,18 +106,27 @@ def save_raw_article(title, link, content, source_name="Unknown", published_at=N
         """
 
         cursor.execute(
-            query, (raw_id, source_id, link, title, content, published_at, content_hash)
+            query,
+            (
+                raw_id,
+                source_id,
+                link,
+                title,
+                content,
+                published_at,
+                content_hash,
+            ),
         )
 
         conn.commit()
-        print(f"✅ Đã lưu RAW_ARTICLE: {title[:50]}...")
+        print(f"Đã lưu RAW_ARTICLE: {title[:50]}...")
         return True
 
     except Error as e:
         if "Duplicate entry" in str(e):
-            print("⚠️ Bài đã tồn tại, bỏ qua.")
+            print("Bài đã tồn tại, bỏ qua.")
         else:
-            print(f"❌ Lỗi lưu RAW_ARTICLE: {e}")
+            print(f"Lỗi lưu RAW_ARTICLE: {e}")
         return False
 
     finally:
@@ -185,7 +194,10 @@ def get_or_create_disease(name):
 
     disease_id = generate_id()
 
-    cursor.execute("INSERT INTO DISEASE (id, name) VALUES (%s, %s)", (disease_id, name))
+    cursor.execute(
+        "INSERT INTO DISEASE (id, name) VALUES (%s, %s)",
+        (disease_id, name),
+    )
 
     conn.commit()
     cursor.close()
@@ -214,7 +226,10 @@ def get_or_create_region(name):
 
     region_id = generate_id()
 
-    cursor.execute("INSERT INTO REGION (id, name) VALUES (%s, %s)", (region_id, name))
+    cursor.execute(
+        "INSERT INTO REGION (id, name) VALUES (%s, %s)",
+        (region_id, name),
+    )
 
     conn.commit()
     cursor.close()
@@ -243,6 +258,7 @@ def save_processed_article(
     DISEASE_EVENT
     STATIC
     """
+
     conn = get_connection()
     if not conn:
         return False
@@ -260,9 +276,14 @@ def save_processed_article(
             """
             INSERT INTO ARTICLE
             (id, raw_article_id, summary, content_clean, processed_at)
-            VALUES (%s, %s, %s, %s, CURDATE())
+            VALUES (%s, %s, %s, %s, NOW())
             """,
-            (article_id, raw_article_id, summary, content_clean),
+            (
+                article_id,
+                raw_article_id,
+                summary,
+                content_clean,
+            ),
         )
 
         cursor.execute(
@@ -271,7 +292,14 @@ def save_processed_article(
             (id, article_id, region_id, disease_id, event_date, risk_level)
             VALUES (%s, %s, %s, %s, %s, %s)
             """,
-            (event_id, article_id, region_id, disease_id, event_date, risk_level),
+            (
+                event_id,
+                article_id,
+                region_id,
+                disease_id,
+                event_date,
+                risk_level,
+            ),
         )
 
         cursor.execute(
@@ -291,12 +319,12 @@ def save_processed_article(
         )
 
         conn.commit()
-        print("✅ Đã lưu ARTICLE + DISEASE_EVENT + STATIC")
+        print("Đã lưu ARTICLE + DISEASE_EVENT + STATIC")
         return True
 
     except Error as e:
         conn.rollback()
-        print(f"❌ Lỗi xử lý article: {e}")
+        print(f"Lỗi xử lý article: {e}")
         return False
 
     finally:
@@ -309,15 +337,14 @@ def save_processed_article(
 # =========================
 
 
-def get_all_processed_articles(limit=100):
+def get_all_processed_articles(limit=None):
     conn = get_connection()
     if not conn:
         return []
 
     cursor = conn.cursor(dictionary=True)
 
-    cursor.execute(
-        """
+    query = """
         SELECT
             a.id AS article_id,
             r.title,
@@ -340,10 +367,14 @@ def get_all_processed_articles(limit=100):
         LEFT JOIN REGION rg ON de.region_id = rg.id
         LEFT JOIN STATIC s ON s.event_id = de.id
         ORDER BY a.processed_at DESC
-        LIMIT %s
-        """,
-        (limit,),
-    )
+    """
+
+    # Chỉ thêm LIMIT khi limit có giá trị
+    if limit is not None:
+        query += " LIMIT %s"
+        cursor.execute(query, (limit,))
+    else:
+        cursor.execute(query)
 
     rows = cursor.fetchall()
 
@@ -403,8 +434,17 @@ def filter_articles(
                 OR a.content_clean LIKE %s
             )
         """
+
         like_keyword = f"%{keyword}%"
-        params.extend([like_keyword, like_keyword, like_keyword, like_keyword])
+
+        params.extend(
+            [
+                like_keyword,
+                like_keyword,
+                like_keyword,
+                like_keyword,
+            ]
+        )
 
     if disease_name:
         query += " AND d.name LIKE %s"
@@ -426,8 +466,12 @@ def filter_articles(
         query += " AND de.risk_level = %s"
         params.append(risk_level)
 
-    query += " ORDER BY a.processed_at DESC LIMIT %s"
-    params.append(int(limit))
+    query += " ORDER BY a.processed_at DESC"
+
+    # Chỉ limit khi có truyền limit
+    if limit is not None:
+        query += " LIMIT %s"
+        params.append(int(limit))
 
     cursor.execute(query, tuple(params))
     rows = cursor.fetchall()
