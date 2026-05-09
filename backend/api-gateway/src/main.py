@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src import database
 import requests
 
-CHATBOT_SERVICE_URL = "http://localhost:8000/chat"
+CHATBOT_SERVICE_URL = "http://localhost:8001/chat"
 
 app = FastAPI(title="Disease Management API")
 
@@ -65,19 +65,10 @@ def filter_articles(
 
 @app.post("/api/chat")
 def chat(request: ChatRequest):
-    # 1. Lấy dữ liệu từ DB
     rows = database.search_chatbot_context(request.question, limit=5)
 
-    if not rows:
-        return {
-            "answer": "Không tìm thấy dữ liệu phù hợp.",
-            "sources": []
-        }
-
-    # 2. Gọi chatbot-service
     ai_answer = call_chatbot_service(request.question, rows)
 
-    # 3. Trả sources
     sources = []
     for row in rows:
         sources.append({
@@ -93,6 +84,7 @@ def chat(request: ChatRequest):
         "sources": sources
     }
 
+
 def call_chatbot_service(question, rows):
     try:
         response = requests.post(
@@ -101,18 +93,19 @@ def call_chatbot_service(question, rows):
                 "question": question,
                 "context": rows
             },
-            timeout=10
+            timeout=30
         )
 
         if response.status_code == 200:
             return response.json().get("answer")
 
-        return "Chatbot service lỗi."
+        return "Chatbot service đang lỗi."
 
     except Exception as e:
         print("❌ Lỗi gọi chatbot-service:", e)
         return "Không thể kết nối chatbot-service."
-    
+
+
 @app.get("/internal/search")
 def search_for_chatbot(question: str):
     return database.search_chatbot_context(question, limit=20)

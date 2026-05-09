@@ -1,172 +1,90 @@
-import requests
 from openai import OpenAI
-from src.config import OPENAI_API_KEY, GATEWAY_URL
+from src.config import OPENAI_API_KEY
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-# =========================
-# CALL API GATEWAY
-# =========================
-def get_context(question):
-    try:
-        res = requests.get(
-            GATEWAY_URL,
-            params={"question": question},
-            timeout=5
-        )
-
-        print("👉 CALL GATEWAY:", res.status_code)
-
-        return res.json()
-
-    except Exception as e:
-        print("❌ Lỗi gọi gateway:", e)
-        return []
-
-
-# =========================
-# INTENT
-# =========================
-def detect_intent(question):
+def is_epidemic_question(question: str) -> bool:
     q = question.lower()
 
-    if "ở đâu" in q or "thành phố" in q:
-        return "LOCATION"
-    if "bao nhiêu" in q or "số ca" in q:
-        return "STATS"
-    if "nguy hiểm" in q or "mức độ" in q:
-        return "RISK"
+    epidemic_words = [
+        "dịch", "dịch bệnh", "virus", "vi khuẩn", "ca nhiễm",
+        "sốt xuất huyết", "cúm", "covid", "sởi",
+        "dịch tả lợn", "cúm gia cầm", "lở mồm long móng",
+        "sâu bệnh", "dịch hại", "bệnh cây trồng"
+    ]
 
-    return "GENERAL"
-
-
-# =========================
-# EXTRACT DISEASE
-# =========================
-def extract_disease(question, rows):
-    q = question.lower()
-
-    for r in rows:
-        name = (r.get("disease_name") or "").lower()
-        if name and name in q:
-            return name
-
-    return None
+    return any(word in q for word in epidemic_words)
 
 
-# =========================
-# HANDLE SIMPLE
-# =========================
-def handle_simple(question, rows):
-    intent = detect_intent(question)
-    disease = extract_disease(question, rows)
-
-    if not disease:
-        return None
-
-    if intent == "LOCATION":
-        locations = list(set([
-            r.get("location") for r in rows if r.get("location")
-        ]))
-        return f"Dịch {disease} xuất hiện tại: {', '.join(locations)}"
-
-    if intent == "STATS":
-        infected = sum([r.get("cases_infected") or 0 for r in rows])
-        dead = sum([r.get("cases_dead") or 0 for r in rows])
-        recovered = sum([r.get("cases_recovered") or 0 for r in rows])
-
-        return (
-            f"Dịch {disease} có:\n"
-            f"- Ca nhiễm: {infected}\n"
-            f"- Tử vong: {dead}\n"
-            f"- Hồi phục: {recovered}"
-        )
-
-    if intent == "RISK":
-        risks = list(set([
-            r.get("risk_level") for r in rows if r.get("risk_level")
-        ]))
-        return f"Mức độ rủi ro của {disease}: {', '.join(risks)}"
-
-    return None
-
-
-# =========================
-# AI FALLBACK
-# =========================
 def build_context(rows):
+    if not rows:
+        return "Không có dữ liệu nội bộ phù hợp."
+
     context = ""
+
     for i, r in enumerate(rows, 1):
         context += f"""
 {i}. {r.get("title")}
+- Link: {r.get("url")}
 - Dịch bệnh: {r.get("disease_name")}
 - Khu vực: {r.get("location")}
+- Ngày sự kiện: {r.get("event_date")}
+- Mức độ rủi ro: {r.get("risk_level")}
 - Ca nhiễm: {r.get("cases_infected")}
+- Tử vong: {r.get("cases_dead")}
+- Hồi phục: {r.get("cases_recovered")}
 """
+
     return context
 
 
-def ask_ai(question, rows):
+def ask_ai(question: str, rows):
     context = build_context(rows)
+    epidemic = is_epidemic_question(question)
 
-    prompt = f"""
-Dữ liệu:
+    if epidemic:
+        system_prompt = """
+Bạn là chatbot hỗ trợ hệ thống giám sát dịch bệnh.
+Bạn được phép dùng dữ liệu nội bộ được cung cấp và kiến thức chung.
+Nếu dữ liệu nội bộ có thông tin phù hợp, hãy ưu tiên dữ liệu nội bộ.
+Nếu dữ liệu nội bộ không đủ, hãy bổ sung kiến thức chung.
+Không bịa số liệu. Nếu không có số liệu thì nói chưa có số liệu trong hệ thống.
+Trả lời bằng tiếng Việt, ngắn gọn, dễ hiểu.
+"""
+        user_prompt = f"""
+Dữ liệu nội bộ:
 {context}
 
-Câu hỏi:
+Câu hỏi người dùng:
 {question}
 
 Yêu cầu:
-- Trả lời đúng dữ liệu
-- Không bịa
-- Ngắn gọn
+- Trả lời liên quan dịch bệnh.
+- Nếu có dữ liệu nội bộ thì nêu rõ bệnh, khu vực, mức độ rủi ro, số ca nếu có.
+- Nếu hỏi kiến thức chung như "dịch tả lợn là gì" thì giải thích thêm bằng kiến thức chung.
 """
+    else:
+        system_prompt = """
+Bạn là trợ lý AI thân thiện.
+Bạn có thể trả lời câu hỏi thông thường, chào hỏi, giải thích kiến thức phổ thông.
+Nếu câu hỏi không liên quan dịch bệnh thì trả lời bình thường.
+Trả lời bằng tiếng Việt, ngắn gọn.
+"""
+        user_prompt = question
 
     res = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
-            {"role": "system", "content": "Bạn là chatbot dịch bệnh."},
-            {"role": "user", "content": prompt}
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
         ],
-        temperature=0.3
+        temperature=0.4
     )
 
     return res.choices[0].message.content
 
 
-def generate_answer(question):
-    rows = get_context(question)
-
-    # 1. Nếu có DB → xử lý
-    if rows:
-        simple = handle_simple(question, rows)
-        if simple:
-            return simple
-
-        # fallback AI có context
-        return ask_ai(question, rows)
-
-    # 2. Nếu KHÔNG có DB → vẫn gọi AI (QUAN TRỌNG)
-    return ask_ai_no_context(question)
-
-def ask_ai_no_context(question):
-    prompt = f"""
-Câu hỏi: {question}
-
-Yêu cầu:
-- Trả lời bằng kiến thức chung
-- Ngắn gọn, dễ hiểu
-- Nếu là bệnh → mô tả triệu chứng + nguyên nhân
-"""
-
-    res = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {"role": "system", "content": "Bạn là chuyên gia về dịch bệnh."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.5
-    )
-
-    return res.choices[0].message.content
+def generate_answer(question: str, rows=None):
+    rows = rows or []
+    return ask_ai(question, rows)
