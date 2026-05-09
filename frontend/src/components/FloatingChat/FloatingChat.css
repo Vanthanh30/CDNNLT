@@ -318,3 +318,69 @@
     font-family: inherit;
   }
 }
+
+/* ── WRAPPER TIN NHẮN (Để chứa cả text và source) ── */
+.ac-msg-bubble-wrap {
+  max-width: 82%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Gỡ bỏ max-width ở bubble cũ vì wrap đã lo rồi */
+.ac-msg-bubble {
+  padding: 8px 12px;
+  border-radius: 11px;
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── NGUỒN THAM KHẢO (SOURCES) ── */
+.ac-msg-sources {
+  background-color: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.source-title {
+  margin: 0 0 6px 0;
+  color: #94a3b8;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ac-msg-sources ul {
+  margin: 0;
+  padding-left: 14px;
+}
+
+.ac-msg-sources li {
+  margin-bottom: 4px;
+  color: #64748b;
+}
+
+.ac-msg-sources li:last-child {
+  margin-bottom: 0;
+}
+
+.ac-msg-sources a {
+  color: #38bdf8;
+  text-decoration: none;
+  transition: text-decoration 0.2s;
+}
+
+.ac-msg-sources a:hover {
+  text-decoration: underline;
+}
+
+.source-risk {
+  margin-left: 6px;
+  opacity: 0.7;
+  font-style: italic;
+}

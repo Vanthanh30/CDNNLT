@@ -1,66 +1,84 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Bot, Send, X } from "lucide-react";
-import "./FloatingChat.css"; // File CSS chứa style của Bot
+import { Bot, Send, X, Link as LinkIcon } from "lucide-react"; // Thêm icon Link
+import "./FloatingChat.css";
 
-const FloatingChat = ({ stats, analytics }) => {
+const FloatingChat = ({ stats }) => {
   const [showChat, setShowChat] = useState(false);
   const [closing, setClosing] = useState(false);
 
-  // Khởi tạo tin nhắn chào mừng dựa trên props truyền vào
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const bottomRef = useRef(null);
 
-  // Cập nhật câu chào khi có dữ liệu mới
+  // Khởi tạo lời chào dựa trên dữ liệu thật của trang hiện tại
   useEffect(() => {
     const timer = setTimeout(() => {
       setMessages([
         {
           id: 1,
           role: "ai",
-          text: `Xin chào! Tôi là Sentinel AI.\n\nĐã phân tích **${stats?.total_articles || 0} bài báo**. Bệnh nổi bật: **${stats?.top_keyword || "N/A"}** (${stats?.top_keyword_count || 0} bài).\n\nBạn muốn hỏi gì?`,
+          text: `Xin chào! Tôi là Sentinel AI.\n\nĐã phân tích **${stats?.total_articles || 0} bài báo**. Bệnh nổi bật: **${stats?.top_keyword || "N/A"}**.\n\nBạn muốn hỏi gì về tình hình dịch bệnh?`,
         },
       ]);
     }, 0);
-
-    // Dọn dẹp timer
     return () => clearTimeout(timer);
   }, [stats]);
 
-  // Tự động cuộn xuống tin nhắn mới nhất
+  // Cuộn xuống tin nhắn mới nhất
   useEffect(() => {
     if (showChat) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, typing, showChat]);
 
-  // Xử lý gửi tin nhắn
+  // 🟢 HÀM GỌI API THẬT
   const send = async (quickText) => {
     const text = quickText || input.trim();
     if (!text || typing) return;
 
     setInput("");
+    // In câu hỏi của người dùng ra màn hình
     setMessages((prev) => [...prev, { id: Date.now(), role: "user", text }]);
     setTyping(true);
 
-    // Giả lập AI trả lời (Sau này nối API Backend vào đây)
-    setTimeout(() => {
-      const kws = (analytics?.top_keywords || [])
-        .slice(0, 3)
-        .map((k) => `${k.keyword} (${k.count} bài)`)
-        .join(", ");
-      const reply = `Dựa trên dữ liệu:\n- Tổng bài: **${stats?.total_articles || 0}**\n- Bệnh nổi bật: **${kws || "chưa có"}**\n- Bài 7 ngày gần đây: **${stats?.recent_7d || 0}**`;
+    try {
+      // Gọi xuống API Gateway (đảm bảo BE của bạn đang chạy ở cổng 8000)
+      const response = await fetch("http://localhost:8000/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: text }),
+      });
 
+      if (!response.ok) throw new Error("Lỗi kết nối API Chat");
+
+      const data = await response.json();
+
+      // In câu trả lời của AI và danh sách Nguồn tham khảo
       setMessages((prev) => [
         ...prev,
-        { id: Date.now() + 1, role: "ai", text: reply },
+        {
+          id: Date.now() + 1,
+          role: "ai",
+          text: data.answer,
+          sources: data.sources, // 🟢 Lưu lại sources từ Backend
+        },
       ]);
+    } catch (error) {
+      console.error(error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          role: "ai",
+          text: "Xin lỗi, hiện tại tôi không thể kết nối tới máy chủ Sentinel. Vui lòng kiểm tra lại mạng hoặc thử lại sau.",
+        },
+      ]);
+    } finally {
       setTyping(false);
-    }, 1200);
+    }
   };
 
-  // Hiệu ứng đóng khung chat mượt mà
   const closeChat = () => {
     setClosing(true);
     setTimeout(() => {
@@ -69,21 +87,26 @@ const FloatingChat = ({ stats, analytics }) => {
     }, 220);
   };
 
-  // Render chữ in đậm
-  const renderText = (text) =>
-    text
-      .split(/(\*\*[^*]+\*\*)/g)
-      .map((part, i) =>
-        part.startsWith("**") ? (
-          <strong key={i}>{part.slice(2, -2)}</strong>
-        ) : (
-          <span key={i}>{part}</span>
-        ),
-      );
+  // Hàm render text đơn giản có hỗ trợ xuống dòng và in đậm (Markdown cơ bản của GPT)
+  const renderText = (text) => {
+    return text.split("\n").map((line, lineIndex) => (
+      <React.Fragment key={lineIndex}>
+        {line
+          .split(/(\*\*[^*]+\*\*)/g)
+          .map((part, i) =>
+            part.startsWith("**") ? (
+              <strong key={i}>{part.slice(2, -2)}</strong>
+            ) : (
+              <span key={i}>{part}</span>
+            ),
+          )}
+        {lineIndex !== text.split("\n").length - 1 && <br />}
+      </React.Fragment>
+    ));
+  };
 
   return (
     <>
-      {/* ── NÚT BẤM (FAB) ── */}
       <button
         className={`ac-fab ${showChat ? "active" : ""}`}
         onClick={() => setShowChat(!showChat)}
@@ -92,7 +115,6 @@ const FloatingChat = ({ stats, analytics }) => {
         <span>Sentinel AI</span>
       </button>
 
-      {/* ── KHUNG CHAT ── */}
       {showChat && (
         <div className={`ac-chat-box ${closing ? "closing" : ""}`}>
           <div className="ac-chat-header">
@@ -118,7 +140,37 @@ const FloatingChat = ({ stats, analytics }) => {
                     <Bot size={12} />
                   </div>
                 )}
-                <div className="ac-msg-bubble">{renderText(msg.text)}</div>
+                <div className="ac-msg-bubble-wrap">
+                  <div className="ac-msg-bubble">{renderText(msg.text)}</div>
+
+                  {/* 🟢 RENDER DANH SÁCH NGUỒN THAM KHẢO NẾU CÓ */}
+                  {msg.sources && msg.sources.length > 0 && (
+                    <div className="ac-msg-sources">
+                      <p className="source-title">
+                        <LinkIcon size={10} /> Nguồn tham khảo:
+                      </p>
+                      <ul>
+                        {msg.sources.map((src, idx) => (
+                          <li key={idx}>
+                            <a
+                              href={src.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={src.title}
+                            >
+                              {src.title.length > 40
+                                ? src.title.substring(0, 40) + "..."
+                                : src.title}
+                            </a>
+                            <span className="source-risk">
+                              ({src.disease_name} - Rủi ro {src.risk_level})
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
             {typing && (
@@ -138,9 +190,9 @@ const FloatingChat = ({ stats, analytics }) => {
 
           <div className="ac-quick-btns">
             {[
-              "Bệnh nào nhiều nhất?",
-              "7 ngày gần đây?",
-              "Khu vực đáng lo?",
+              "Tình hình dịch tả lợn?",
+              "Sốt xuất huyết ở đâu?",
+              "Mức độ rủi ro hiện tại?",
             ].map((q, i) => (
               <button key={i} className="ac-quick" onClick={() => send(q)}>
                 {q}
@@ -150,7 +202,7 @@ const FloatingChat = ({ stats, analytics }) => {
 
           <div className="ac-chat-input">
             <textarea
-              placeholder="Hỏi về dịch bệnh... (Enter gửi)"
+              placeholder="Hỏi AI về dịch bệnh... (Enter để gửi)"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
