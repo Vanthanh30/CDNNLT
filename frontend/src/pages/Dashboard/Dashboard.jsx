@@ -9,42 +9,26 @@ import "./Dashboard.css";
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedLocation, setSelectedLocation] = useState(null);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
         const data = await articleService.getAllArticles();
-
-        // Tính stats từ data thật
         const total = data.length;
         const withEvent = data.filter((a) => a.disease_name).length;
         const highRisk = data.filter((a) => a.risk_level === "HIGH").length;
-        const uniqueDiseases = new Set(
-          data.map((a) => a.disease_name).filter(Boolean),
-        ).size;
-        const uniqueLocations = new Set(
-          data.map((a) => a.location).filter(Boolean),
-        ).size;
-
-        // Top disease
+        const uniqueDiseases = new Set(data.map((a) => a.disease_name).filter(Boolean)).size;
+        const uniqueLocations = new Set(data.map((a) => a.location).filter(Boolean)).size;
         const diseaseCounts = {};
         data.forEach((a) => {
-          if (a.disease_name) {
-            diseaseCounts[a.disease_name] =
-              (diseaseCounts[a.disease_name] || 0) + 1;
-          }
+          if (a.disease_name)
+            diseaseCounts[a.disease_name] = (diseaseCounts[a.disease_name] || 0) + 1;
         });
-        const topDisease = Object.entries(diseaseCounts).sort(
-          (a, b) => b[1] - a[1],
-        )[0];
-
+        const topDisease = Object.entries(diseaseCounts).sort((a, b) => b[1] - a[1])[0];
         setStats({
-          total,
-          total_articles: total,
-          withEvent,
-          highRisk,
-          uniqueDiseases,
-          uniqueLocations,
+          total, total_articles: total, withEvent, highRisk,
+          uniqueDiseases, uniqueLocations,
           top_keyword: topDisease?.[0] || null,
           top_keyword_count: topDisease?.[1] || 0,
           processRate: total > 0 ? Math.round((withEvent / total) * 100) : 0,
@@ -60,16 +44,13 @@ const Dashboard = () => {
 
   const getRiskInfo = () => {
     if (!stats) return { value: "...", sub: "Đang phân tích..." };
-    if (stats.highRisk === 0)
-      return { value: "Bình thường", sub: "Chưa phát hiện bất thường" };
+    if (stats.highRisk === 0) return { value: "Bình thường", sub: "Chưa phát hiện bất thường" };
     return {
       value: stats.highRisk > 10 ? "Nguy cơ cao" : "Theo dõi",
       sub: `${stats.highRisk} bài được đánh giá rủi ro cao`,
     };
   };
-
   const riskInfo = getRiskInfo();
-
   const dummyAnalytics = {
     top_keywords: stats?.top_keyword
       ? [{ keyword: stats.top_keyword, count: stats.top_keyword_count }]
@@ -77,14 +58,24 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="content-grid" style={{ position: "relative" }}>
-      <div className="map-section panel">
-        <MapWidget />
-      </div>
-      <div className="right-section panel">
-        <RightPanel />
+    <div className="content-grid">
+
+      {/* ── Map: full width khi chưa chọn, co lại khi có panel ── */}
+      <div className={`map-section panel${selectedLocation ? " map-shrunk" : ""}`}>
+        <MapWidget onLocationSelect={setSelectedLocation} />
       </div>
 
+      {/* ── RightPanel: chỉ mount khi click marker, slide in từ phải ── */}
+      {selectedLocation && (
+        <div className="right-section panel">
+          <RightPanel
+            selectedLocation={selectedLocation}
+            onClearLocation={() => setSelectedLocation(null)}
+          />
+        </div>
+      )}
+
+      {/* ── Stats row ── */}
       <div className="stats-section">
         <StatCard
           title="TỔNG SỐ TIN TỨC ĐÃ QUÉT"
@@ -115,6 +106,7 @@ const Dashboard = () => {
           color={stats?.highRisk > 10 ? "red" : "muted"}
         />
       </div>
+
       {!isLoading && <FloatingChat stats={stats} analytics={dummyAnalytics} />}
     </div>
   );

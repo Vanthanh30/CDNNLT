@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Popup, Marker } from "react-leaflet";
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./MapWidget.css";
 
@@ -41,7 +42,46 @@ const PROVINCE_COORDS = {
   "Cà Mau": [9.1769, 105.1524],
 };
 
-const MapWidget = () => {
+// Helper tạo label icon (biển, quần đảo)
+const makeLabelIcon = (lines, fontSize = 12, color = "#1d6fa4", center = false) =>
+  L.divIcon({
+    className: "",
+    html: `<div style="
+      color: ${color};
+      font-size: ${fontSize}px;
+      font-weight: 700;
+      font-style: italic;
+      letter-spacing: 1.5px;
+      line-height: 1.4;
+      text-align: ${center ? "center" : "left"};
+      text-shadow: 0 1px 4px rgba(255,255,255,0.95), 0 0 10px rgba(255,255,255,0.7);
+      white-space: nowrap;
+      pointer-events: none;
+      user-select: none;
+    ">${Array.isArray(lines) ? lines.join("<br/>") : lines}</div>`,
+    iconAnchor: [0, 0],
+  });
+
+// Icon chấm nhỏ + tên cho quần đảo
+const makeIslandIcon = (name) =>
+  L.divIcon({
+    className: "",
+    html: `<div style="display:flex;flex-direction:column;align-items:center;pointer-events:none;user-select:none;">
+      <div style="width:7px;height:7px;border-radius:50%;background:#e67e22;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>
+      <div style="
+        margin-top:2px;
+        color:#7c4a00;
+        font-size:10px;
+        font-weight:700;
+        white-space:nowrap;
+        text-shadow:0 1px 3px rgba(255,255,255,1);
+        text-align:center;
+      ">${name}</div>
+    </div>`,
+    iconAnchor: [3, 3],
+  });
+
+const MapWidget = ({ onLocationSelect }) => {
   const navigate = useNavigate();
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -55,17 +95,25 @@ const MapWidget = () => {
         articles.forEach((a) => {
           const loc = a.location;
           if (!loc || !PROVINCE_COORDS[loc]) return;
-          if (!locMap[loc]) locMap[loc] = { count: 0, articles: [], diseases: new Set() };
+          if (!locMap[loc]) locMap[loc] = { count: 0, articles: [], allArticles: [], diseases: new Set() };
           locMap[loc].count += 1;
+          locMap[loc].allArticles.push(a);
           if (locMap[loc].articles.length < 3) locMap[loc].articles.push(a.title || "");
           if (a.disease_name) locMap[loc].diseases.add(a.disease_name);
         });
+
         const result = Object.entries(locMap)
           .map(([name, data]) => ({
-            name, lat: PROVINCE_COORDS[name][0], lng: PROVINCE_COORDS[name][1],
-            count: data.count, articles: data.articles, diseases: [...data.diseases],
+            name,
+            lat: PROVINCE_COORDS[name][0],
+            lng: PROVINCE_COORDS[name][1],
+            count: data.count,
+            articles: data.articles,
+            allArticles: data.allArticles,
+            diseases: [...data.diseases],
           }))
           .sort((a, b) => b.count - a.count);
+
         setLocations(result);
       } catch (err) {
         console.error("MapWidget fetch error:", err);
@@ -77,13 +125,26 @@ const MapWidget = () => {
   }, []);
 
   const maxCount = locations.length > 0 ? locations[0].count : 1;
+
   const getMarkerColor = (rank, total) => {
     const ratio = rank / total;
     if (ratio < 0.33) return "#ef4444";
     if (ratio < 0.66) return "#f97316";
     return "#0ea5e9";
   };
+
   const getRadius = (count) => Math.max(7, Math.round((count / maxCount) * 20));
+
+  const handleMarkerClick = (loc) => {
+    if (onLocationSelect) {
+      onLocationSelect({
+        name: loc.name,
+        count: loc.count,
+        diseases: loc.diseases,
+        allArticles: loc.allArticles,
+      });
+    }
+  };
 
   return (
     <div className="map-wrapper">
@@ -93,7 +154,8 @@ const MapWidget = () => {
             Bản đồ Giám sát Dịch bệnh
           </h2>
           <p className="map-subtitle">
-            {loading ? "Đang tải dữ liệu..."
+            {loading
+              ? "Đang tải dữ liệu..."
               : locations.length > 0
                 ? `Phát hiện ${locations.length} khu vực trong ${locations.reduce((s, l) => s + l.count, 0)} bài viết`
                 : "Chưa có dữ liệu địa điểm"}
@@ -103,52 +165,84 @@ const MapWidget = () => {
       </div>
 
       <MapContainer
-        center={[16.4637, 107.5909]} zoom={6.5} minZoom={6}
-        maxBounds={[[8.0, 102.0], [23.5, 110.0]]}
-        maxBoundsViscosity={1.0} className="leaflet-map"
-        zoomControl={false} scrollWheelZoom={true}
+        center={[16.0, 106.5]}
+        zoom={7}
+        minZoom={6}
+        maxZoom={11}
+        maxBounds={[
+          [6.5, 101.5],   // Tây-Nam (Cà Mau, vịnh Thái Lan)
+          [23.5, 117.5],  // Đông-Bắc (Hà Giang + Biển Đông + Trường Sa)
+        ]}
+        maxBoundsViscosity={1.0}
+        className="leaflet-map"
+        zoomControl={false}
+        scrollWheelZoom={true}
       >
-        <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png" attribution="&copy; OpenStreetMap" />
-        <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" />
+        {/*
+          Layer 1: Màu sắc địa hình (đất liền, biển, địa hình)
+          voyager_nolabels = màu đẹp, KHÔNG có chữ
+        */}
+        <TileLayer
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CartoDB</a>'
+        />
+
+        {/*
+          Layer 2: Chỉ label tên tỉnh/huyện/xã của Việt Nam
+          only_labels = chỉ có chữ, không có màu nền
+          → Hiển thị tên địa danh chi tiết
+        */}
+        <TileLayer
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png"
+          opacity={1}
+        />
+
+        {/* ── Biển Đông ── */}
+        <Marker
+          position={[15.5, 113.5]}
+          icon={makeLabelIcon("BIỂN ĐÔNG", 15, "#1d6fa4", true)}
+          interactive={false}
+        />
+
+        {/* ── Quần đảo Hoàng Sa (khoảng 16.5°N, 112°E) ── */}
+        <Marker
+          position={[16.5, 112.0]}
+          icon={makeIslandIcon("Q.đ. Hoàng Sa")}
+          interactive={false}
+        />
+
+        {/* ── Quần đảo Trường Sa (khoảng 10°N, 114°E) ── */}
+        <Marker
+          position={[10.0, 114.2]}
+          icon={makeIslandIcon("Q.đ. Trường Sa")}
+          interactive={false}
+        />
 
         {locations.map((loc, idx) => {
           const color = getMarkerColor(idx, locations.length);
           return (
-            <CircleMarker key={idx} center={[loc.lat, loc.lng]}
+            <CircleMarker
+              key={idx}
+              center={[loc.lat, loc.lng]}
               pathOptions={{ color, fillColor: color, fillOpacity: 0.5, weight: 2 }}
               radius={getRadius(loc.count)}
+              eventHandlers={{ click: () => handleMarkerClick(loc) }}
             >
-              <Popup className="custom-popup" minWidth={210}>
-                <div style={{ minWidth: "210px" }}>
-                  <strong style={{ color, fontSize: "14px" }}>{loc.name}</strong><br />
-                  <span style={{ fontSize: "12px" }}>{loc.count} bài viết</span>
-
+              <Popup className="custom-popup" minWidth={180}>
+                <div style={{ minWidth: "180px" }}>
+                  <strong style={{ color, fontSize: "14px" }}>{loc.name}</strong>
+                  <br />
+                  <span style={{ fontSize: "12px", color: "#94a3b8" }}>
+                    {loc.count} bài viết
+                  </span>
                   {loc.diseases.length > 0 && (
                     <p style={{ fontSize: "11px", color: "#f59e0b", margin: "6px 0 0" }}>
-                      🦠 {loc.diseases.slice(0, 2).join(", ")}
+                      {loc.diseases.slice(0, 2).join(", ")}
                     </p>
                   )}
-
-                  {loc.articles.slice(0, 2).map((title, i) => (
-                    <p key={i} style={{
-                      fontSize: "11px", color: "#94a3b8", margin: "4px 0 0",
-                      overflow: "hidden", textOverflow: "ellipsis",
-                      whiteSpace: "nowrap", maxWidth: "200px",
-                    }}>• {title}</p>
-                  ))}
-
-                  {/* Nút xem tất cả bài báo tại vùng này */}
-                  <button
-                    onClick={() => navigate(`/search?location=${encodeURIComponent(loc.name)}`)}
-                    style={{
-                      marginTop: "10px", width: "100%", padding: "7px 0",
-                      background: color, color: "#fff", border: "none",
-                      borderRadius: "6px", fontSize: "12px", fontWeight: "600",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Xem {loc.count} bài tại {loc.name}
-                  </button>
+                  <p style={{ fontSize: "11px", color: "#64748b", margin: "6px 0 0" }}>
+                    Click để xem bài viết
+                  </p>
                 </div>
               </Popup>
             </CircleMarker>
