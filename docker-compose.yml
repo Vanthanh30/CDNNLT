@@ -15,12 +15,16 @@ services:
   # BE 1: Cào dữ liệu
   crawler:
     build: ./backend/crawler-service
+    env_file:
+      - ./backend/report-service/.env
     depends_on:
       - db
 
   # BE 2: Xử lý AI/NLP
   processor:
     build: ./backend/processor-service
+    env_file:
+      - ./backend/report-service/.env
     depends_on:
       - db
 
@@ -29,6 +33,10 @@ services:
     build: ./backend/api-gateway
     ports:
       - "8000:8000"
+    env_file:
+      - ./backend/report-service/.env
+    volumes:
+      - ./backend/report-service:/app/report-service
     depends_on:
       - db
 

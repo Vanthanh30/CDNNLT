@@ -53,14 +53,16 @@ def get_articles_in_range(start_date, end_date):
             de.risk_level,
             s.cases_infected,
             s.cases_dead,
-            s.cases_recovered
+            s.cases_recovered,
+            COALESCE(de.event_date, DATE(r.published_at)) AS report_date
         FROM ARTICLE a
         JOIN RAW_ARTICLE r ON r.id = a.raw_article_id
-        LEFT JOIN DISEASE_EVENT de ON de.article_id = a.id
+        JOIN DISEASE_EVENT de ON de.article_id = a.id
         LEFT JOIN DISEASE d ON d.id = de.disease_id
         LEFT JOIN REGION rg ON rg.id = de.region_id
         LEFT JOIN STATIC s ON s.event_id = de.id
-        WHERE a.processed_at BETWEEN %s AND %s
+        WHERE DATE(COALESCE(de.event_date, r.published_at)) BETWEEN %s AND %s
+        ORDER BY report_date DESC
     """, (start_date, end_date))
 
     rows = cursor.fetchall()
@@ -79,20 +81,27 @@ def save_weekly_report(start_date, end_date, summary_text, total_articles, pdf_u
 
     report_id = generate_id()
 
-    cursor.execute("""
-        INSERT INTO WEEKLY_REPORT
-        (id, week_start, week_end, summary_text, total_articles, pdf_url)
-        VALUES (%s, %s, %s, %s, %s, %s)
-    """, (report_id, start_date, end_date, summary_text, total_articles, pdf_url))
-
-    for aid in article_ids:
+    try:
         cursor.execute("""
-            INSERT INTO WEEKLY_REPORT_ARTICLE (report_id, article_id)
-            VALUES (%s, %s)
-        """, (report_id, aid))
+            INSERT INTO WEEKLY_REPORT
+            (id, week_start, week_end, summary_text, total_articles, pdf_url)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (report_id, start_date, end_date, summary_text, total_articles, pdf_url))
 
-    conn.commit()
-    cursor.close()
-    conn.close()
+        unique_article_ids = list(dict.fromkeys(article_ids or []))
+        for aid in unique_article_ids:
+            cursor.execute("""
+                INSERT INTO WEEKLY_REPORT_ARTICLE (report_id, article_id)
+                VALUES (%s, %s)
+            """, (report_id, aid))
 
-    return report_id
+        conn.commit()
+        return report_id
+
+    except Exception:
+        conn.rollback()
+        raise
+
+    finally:
+        cursor.close()
+        conn.close()

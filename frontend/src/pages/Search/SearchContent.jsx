@@ -1,21 +1,91 @@
-import React, { useState } from "react";
-import {
-  Search,
-  Filter,
-  ArrowUp,
-  Zap,
-  Play,
-  Video,
-  TrendingUp,
-  ChevronLeft,
-  ChevronRight,
-  X,
-} from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Search, Filter, ChevronLeft, ChevronRight, X } from "lucide-react";
+import FloatingChat from "../../components/FloatingChat/FloatingChat";
+import ArticleRow from "../../components/ArticleRow/ArticleRow";
 import { useArticles } from "../../hooks/useArticles";
-import ArticleCard from "../../components/ArticleCard/ArticleCard";
 import "./SearchContent.css";
 
+// ── Constants ──────────────────────────────────────────────
+const DATE_RANGES = ["Tất Cả", "7 Ngày Qua", "30 Ngày Qua"];
+
+const RISK_LEVELS = [
+  { label: "Cao (HIGH)", key: "HIGH", color: "#ef4444" },
+  { label: "Trung bình (MEDIUM)", key: "MEDIUM", color: "#f59e0b" },
+  { label: "Thấp / Chưa xác định", key: "LOW", color: "#10b981" },
+];
+
+// ── Helpers ───────────────────────────────────────────────
+const countRisk = (articles, key) =>
+  key === "LOW"
+    ? articles.filter((a) => !a.risk_level || a.risk_level === "LOW").length
+    : articles.filter((a) => a.risk_level === key).length;
+
+const pct = (count, total) =>
+  total > 0 ? Math.round((count / total) * 100) : 0;
+
+// ── Sub-components ────────────────────────────────────────
+const LocationBadge = ({ location, onClear }) => (
+  <div
+    style={{
+      marginTop: 8,
+      padding: "6px 12px",
+      background: "#1e293b",
+      borderRadius: 6,
+      fontSize: 13,
+      color: "#0ea5e9",
+      display: "inline-flex",
+      gap: 8,
+      alignItems: "center",
+    }}
+  >
+    📍 Đang lọc: <strong>{location}</strong>
+    <button
+      onClick={onClear}
+      style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: 0 }}
+    >
+      <X size={14} />
+    </button>
+  </div>
+);
+
+const RiskRow = ({ label, key: riskKey, color, articles }) => {
+  const count = countRisk(articles, riskKey);
+  const percentage = pct(count, articles.length);
+  return (
+    <div className="risk-row">
+      <div className="risk-label-row">
+        <span className="risk-label" style={{ color }}>{label}</span>
+        <span className="risk-count">{count} bài ({percentage}%)</span>
+      </div>
+      <div className="risk-bar-bg">
+        <div className="risk-bar-fill" style={{ width: `${percentage}%`, backgroundColor: color }} />
+      </div>
+    </div>
+  );
+};
+
+const Pagination = ({ pagination }) => {
+  const { currentPage, totalPages, paginate } = pagination;
+  if (totalPages <= 1) return null;
+  return (
+    <div className="pagination">
+      <button className="page-btn" onClick={() => paginate(currentPage - 1)} disabled={currentPage === 1}>
+        <ChevronLeft size={18} /> Trước
+      </button>
+      <span className="page-info">
+        Trang <strong style={{ color: "#0ea5e9" }}>{currentPage}</strong> / {totalPages}
+      </span>
+      <button className="page-btn" onClick={() => paginate(currentPage + 1)} disabled={currentPage === totalPages}>
+        Sau <ChevronRight size={18} />
+      </button>
+    </div>
+  );
+};
+
+// ── Main component ────────────────────────────────────────
 const SearchContent = () => {
+  const [searchParams] = useSearchParams();
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const {
@@ -30,16 +100,53 @@ const SearchContent = () => {
     currentArticles,
     totalArticlesCount,
     pagination,
+    filteredArticles,
   } = useArticles();
+
+  // Auto-open advanced panel when navigating from map with ?location=
+  useEffect(() => {
+    const loc = searchParams.get("location");
+    if (loc) {
+      updateFilter("location", loc);
+      setShowAdvanced(true);
+    }
+  }, [searchParams, updateFilter]);
+
+  // Sidebar stats derived from filtered articles
+  const stats = useMemo(() => {
+    if (!filteredArticles.length) return { highRisk: 0, topDisease: null, topCount: 0 };
+
+    const counts = filteredArticles.reduce((acc, a) => {
+      if (a.disease_name) acc[a.disease_name] = (acc[a.disease_name] || 0) + 1;
+      return acc;
+    }, {});
+
+    const [topDisease, topCount] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0] ?? [null, 0];
+
+    return {
+      highRisk: filteredArticles.filter((a) => a.risk_level === "HIGH").length,
+      topDisease,
+      topCount,
+      total_articles: filteredArticles.length,
+      top_keyword: topDisease,
+      top_keyword_count: topCount,
+    };
+  }, [filteredArticles]);
+
+  const hasLocationFilter = filters.location && filters.location !== "Tất Cả";
 
   return (
     <div className="search-tab-container">
+      {/* Header */}
       <div className="search-header">
         <h2>Công cụ Tìm kiếm Thông minh</h2>
         <p>Tổng hợp thông tin y tế và dịch bệnh từ các nguồn báo chí điện tử</p>
+        {hasLocationFilter && (
+          <LocationBadge location={filters.location} onClear={() => updateFilter("location", "Tất Cả")} />
+        )}
       </div>
 
-      {/* Top Controls */}
+      {/* Search controls */}
       <div className="search-controls">
         <div className="search-input-box">
           <Search className="icon-search" size={20} />
@@ -51,146 +158,74 @@ const SearchContent = () => {
             onKeyDown={handleSearch}
           />
         </div>
-
         <div className="date-filters">
-          {["Tất Cả", "7 Ngày Qua", "30 Ngày Qua"].map((range) => (
+          {DATE_RANGES.map((range) => (
             <button
               key={range}
-              className={`filter-btn ${filters.range === range ? "active" : ""}`}
+              className={`filter-btn${filters.range === range ? " active" : ""}`}
               onClick={() => updateFilter("range", range)}
             >
               {range}
             </button>
           ))}
         </div>
-
         <button
-          className={`advanced-btn ${showAdvanced ? "active-adv" : ""}`}
-          onClick={() => setShowAdvanced(!showAdvanced)}
+          className={`advanced-btn${showAdvanced ? " active-adv" : ""}`}
+          onClick={() => setShowAdvanced((v) => !v)}
         >
           <Filter size={18} /> BỘ LỌC NÂNG CAO
         </button>
       </div>
 
-      {/* Advanced Filters Panel */}
+      {/* Advanced filters */}
       {showAdvanced && (
         <div className="advanced-filters-panel">
           <div className="filter-group">
-            <label>Nguồn Báo</label>
-            <select
-              value={filters.source}
-              onChange={(e) => updateFilter("source", e.target.value)}
-            >
-              <option value="Tất Cả">Tất Cả Nguồn</option>
-              {uniqueOptions.sources.map((source) => (
-                <option key={source} value={source}>
-                  {source}
-                </option>
-              ))}
+            <label>Loại Bệnh</label>
+            <select value={filters.disease || "Tất Cả"} onChange={(e) => updateFilter("disease", e.target.value)}>
+              <option value="Tất Cả">Tất Cả Bệnh</option>
+              {uniqueOptions.diseases?.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
           </div>
-
-          <div className="filter-group">
-            <label>Thẻ Nhãn (Tag)</label>
-            <select
-              value={filters.tag}
-              onChange={(e) => updateFilter("tag", e.target.value)}
-            >
-              <option value="Tất Cả">Tất Cả Thẻ</option>
-              {uniqueOptions.tags.map((tag) => (
-                <option key={tag} value={tag}>
-                  {tag}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <div className="filter-group">
             <label>Địa Điểm</label>
-            <select
-              value={filters.location}
-              onChange={(e) => updateFilter("location", e.target.value)}
-            >
+            <select value={filters.location || "Tất Cả"} onChange={(e) => updateFilter("location", e.target.value)}>
               <option value="Tất Cả">Toàn quốc</option>
-              <option value="Hà Nội">Hà Nội</option>
-              <option value="Đà Nẵng">Đà Nẵng</option>
+              {uniqueOptions.locations?.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
             </select>
           </div>
-
+          <div className="filter-group">
+            <label>Mức Rủi Ro</label>
+            <select value={filters.risk_level || "Tất Cả"} onChange={(e) => updateFilter("risk_level", e.target.value)}>
+              <option value="Tất Cả">Tất Cả</option>
+              <option value="HIGH">Cao</option>
+              <option value="MEDIUM">Trung bình</option>
+              <option value="LOW">Thấp</option>
+            </select>
+          </div>
           <button className="clear-filter-btn" onClick={resetFilters}>
             <X size={16} /> Xóa Lọc
           </button>
         </div>
       )}
 
-      {/* Main Content Grid */}
+      {/* Main grid */}
       <div className="search-grid">
+        {/* Articles list */}
         <div className="main-column">
           {isLoading ? (
-            <p
-              style={{ textAlign: "center", padding: "40px", color: "#0ea5e9" }}
-            >
-              ⏳ Đang tổng hợp dữ liệu từ hệ thống Crawler...
-            </p>
+            <p style={{ textAlign: "center", padding: 40, color: "#0ea5e9" }}>⏳ Đang tổng hợp dữ liệu...</p>
           ) : currentArticles.length === 0 ? (
-            <p
-              style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}
-            >
-              Không có dữ liệu phù hợp với thời gian hoặc bộ lọc này.
-            </p>
+            <p style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>Không có dữ liệu phù hợp.</p>
           ) : (
             <>
-              {currentArticles.map((art) => (
-                <ArticleCard key={art.id} article={art} />
-              ))}
-
-              {pagination.totalPages > 1 && (
-                <div className="pagination">
-                  <button
-                    className="page-btn"
-                    onClick={() =>
-                      pagination.paginate(pagination.currentPage - 1)
-                    }
-                    disabled={pagination.currentPage === 1}
-                  >
-                    <ChevronLeft size={18} /> Trước
-                  </button>
-                  <span className="page-info">
-                    Trang{" "}
-                    <strong style={{ color: "#0ea5e9" }}>
-                      {pagination.currentPage}
-                    </strong>{" "}
-                    / {pagination.totalPages}
-                  </span>
-                  <button
-                    className="page-btn"
-                    onClick={() =>
-                      pagination.paginate(pagination.currentPage + 1)
-                    }
-                    disabled={pagination.currentPage === pagination.totalPages}
-                  >
-                    Sau <ChevronRight size={18} />
-                  </button>
-                </div>
-              )}
+              {currentArticles.map((art) => <ArticleRow key={art.article_id} article={art} />)}
+              <Pagination pagination={pagination} />
             </>
           )}
-
-          {/* Video Mock */}
-          <div className="card video-card">
-            <div className="card-header-small">
-              <Video size={16} /> BẢN TIN TỔNG HỢP VIDEO
-            </div>
-            <div className="video-player-mock">
-              <button className="play-button">
-                <Play fill="currentColor" size={24} />
-              </button>
-              <span className="duration">12:45</span>
-            </div>
-          </div>
         </div>
 
-        {/* Right Sidebar Widgets */}
+        {/* Sidebar */}
         <div className="side-column">
           <div className="card widget-card">
             <div className="widget-header">
@@ -198,51 +233,46 @@ const SearchContent = () => {
             </div>
             <div className="summary-list">
               <div className="summary-item">
-                <div className="stat up">
-                  <ArrowUp size={16} />
-                  <span>Total</span>
-                </div>
+                <div className="stat-value up">{totalArticlesCount}</div>
                 <div className="stat-text">
                   <strong>TỔNG SỐ BÀI BÁO</strong>
                   <p>Hiển thị {totalArticlesCount} tin tức</p>
                 </div>
               </div>
-              <div className="summary-item">
-                <div className="stat danger-up">
-                  <ArrowUp size={16} />
-                  <span>14%</span>
+              {stats.topDisease && (
+                <div className="summary-item">
+                  <div className="stat-value danger">{stats.topCount}</div>
+                  <div className="stat-text">
+                    <strong>{stats.topDisease.toUpperCase()}</strong>
+                    <p>Bệnh xuất hiện nhiều nhất</p>
+                  </div>
                 </div>
-                <div className="stat-text">
-                  <strong>SỐT XUẤT HUYẾT</strong>
-                  <p>Gia tăng đột biến ở các tỉnh miền Trung</p>
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
-          <div className="card alert-card">
-            <div className="alert-header">
-              <Zap size={18} fill="currentColor" /> CẢNH BÁO DỊCH BỆNH
+          <div className="card widget-card">
+            <h3 style={{ margin: "0 0 16px" }}>Phân bố Mức độ Rủi ro</h3>
+            <div className="risk-distribution">
+              {RISK_LEVELS.map((level) => (
+                <RiskRow key={level.key} {...level} articles={filteredArticles} />
+              ))}
             </div>
-            <p>
-              Phân tích tin tức cho thấy cụm lây nhiễm cúm A bất thường tại khu
-              vực Quận Hải Châu. Đề xuất kiểm tra chéo ngay lập tức.
+            <p className="risk-total">
+              Tổng cộng: <strong>{totalArticlesCount}</strong> bài đã phân tích
             </p>
-            <button className="audit-btn">KÍCH HOẠT QUY TRÌNH KIỂM TRA</button>
-          </div>
-
-          <div className="card widget-card sentiment-card">
-            <h3>Biểu đồ Mức độ Lo ngại</h3>
-            <div className="bar-chart-mock">
-              <div className="bar" style={{ height: "40%" }}></div>
-              <div className="bar" style={{ height: "60%" }}></div>
-              <div className="bar highlight" style={{ height: "90%" }}></div>
-              <div className="bar" style={{ height: "50%" }}></div>
-            </div>
-            <p className="chart-footer">ĐỘ TIN CẬY NLP: 98.4%</p>
           </div>
         </div>
       </div>
+
+      <FloatingChat
+        stats={stats}
+        analytics={{
+          top_keywords: stats.top_keyword
+            ? [{ keyword: stats.top_keyword, count: stats.top_keyword_count }]
+            : [],
+        }}
+      />
     </div>
   );
 };
