@@ -42,43 +42,68 @@ const PROVINCE_COORDS = {
   "Cà Mau": [9.1769, 105.1524],
 };
 
-// Helper tạo label icon (biển, quần đảo)
-const makeLabelIcon = (lines, fontSize = 12, color = "#1d6fa4", center = false) =>
+// Hoàng Sa — nhóm An Vĩnh (đông) + nhóm Lưỡi Liềm (tây)
+const HOANG_SA_DOTS = [
+  { lat: 16.843, lng: 112.338, r: 2.2 }, // Phú Lâm (lớn nhất)
+  { lat: 16.870, lng: 112.308, r: 1.4 },
+  { lat: 16.856, lng: 112.362, r: 1.2 },
+  { lat: 16.980, lng: 112.240, r: 1.5 }, // Linh Côn
+  { lat: 16.960, lng: 112.185, r: 1.2 },
+  { lat: 17.083, lng: 111.617, r: 1.2 }, // Đảo Bắc
+  { lat: 17.062, lng: 111.542, r: 1.2 },
+  { lat: 16.538, lng: 111.607, r: 1.8 }, // Đảo Hoàng Sa
+  { lat: 16.487, lng: 111.570, r: 1.2 },
+  { lat: 16.450, lng: 111.830, r: 1.2 },
+  { lat: 16.358, lng: 111.748, r: 1.4 }, // Duy Mộng
+  { lat: 16.392, lng: 111.680, r: 1.2 },
+];
+
+// Trường Sa — rải dọc 7°N–12°N
+const TRUONG_SA_DOTS = [
+  { lat: 11.921, lng: 114.360, r: 2.2 }, // Ba Bình
+  { lat: 11.450, lng: 114.575, r: 1.5 }, // Song Tử Tây
+  { lat: 11.460, lng: 114.715, r: 1.2 },
+  { lat: 10.726, lng: 115.823, r: 1.5 }, // Thị Tứ
+  { lat: 10.384, lng: 114.194, r: 1.2 },
+  { lat: 10.178, lng: 114.268, r: 1.8 }, // Trường Sa Lớn
+  { lat: 9.880, lng: 114.498, r: 1.2 },
+  { lat: 9.648, lng: 113.947, r: 1.2 }, // An Bang
+  { lat: 9.248, lng: 113.382, r: 1.2 },
+  { lat: 8.648, lng: 111.923, r: 1.2 }, // Nam Yết
+  { lat: 8.383, lng: 111.547, r: 1.2 },
+  { lat: 7.983, lng: 111.768, r: 1.2 },
+  { lat: 8.117, lng: 113.097, r: 1.2 },
+  { lat: 8.848, lng: 114.482, r: 1.2 },
+  { lat: 9.418, lng: 115.383, r: 1.2 },
+  { lat: 10.183, lng: 115.250, r: 1.2 },
+  { lat: 10.950, lng: 114.752, r: 1.2 },
+];
+
+// Style chấm đảo — be vàng nhạt giống màu đất Hainan trên Voyager
+const ISLAND_DOT_STYLE = {
+  color: "#e8e0c8",
+  fillColor: "#f5f0e0",
+  fillOpacity: 1.0,
+  weight: 0.5,
+};
+
+// Label tên — khớp với font style chữ địa danh của tile Voyager
+const makeArchipelagoLabel = (name) =>
   L.divIcon({
     className: "",
     html: `<div style="
-      color: ${color};
-      font-size: ${fontSize}px;
-      font-weight: 700;
-      font-style: italic;
-      letter-spacing: 1.5px;
-      line-height: 1.4;
-      text-align: ${center ? "center" : "left"};
-      text-shadow: 0 1px 4px rgba(255,255,255,0.95), 0 0 10px rgba(255,255,255,0.7);
+      color: #4a6078;
+      font-size: 10px;
+      font-weight: 500;
+      font-style: normal;
       white-space: nowrap;
+      text-shadow: 0 1px 2px rgba(255,255,255,0.95), 0 0 4px rgba(255,255,255,0.8);
       pointer-events: none;
       user-select: none;
-    ">${Array.isArray(lines) ? lines.join("<br/>") : lines}</div>`,
+      letter-spacing: 0.2px;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+    ">${name}</div>`,
     iconAnchor: [0, 0],
-  });
-
-// Icon chấm nhỏ + tên cho quần đảo
-const makeIslandIcon = (name) =>
-  L.divIcon({
-    className: "",
-    html: `<div style="display:flex;flex-direction:column;align-items:center;pointer-events:none;user-select:none;">
-      <div style="width:7px;height:7px;border-radius:50%;background:#e67e22;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>
-      <div style="
-        margin-top:2px;
-        color:#7c4a00;
-        font-size:10px;
-        font-weight:700;
-        white-space:nowrap;
-        text-shadow:0 1px 3px rgba(255,255,255,1);
-        text-align:center;
-      ">${name}</div>
-    </div>`,
-    iconAnchor: [3, 3],
   });
 
 const MapWidget = ({ onLocationSelect }) => {
@@ -170,54 +195,56 @@ const MapWidget = ({ onLocationSelect }) => {
         minZoom={6}
         maxZoom={11}
         maxBounds={[
-          [6.5, 101.5],   // Tây-Nam (Cà Mau, vịnh Thái Lan)
-          [23.5, 117.5],  // Đông-Bắc (Hà Giang + Biển Đông + Trường Sa)
+          [6.5, 101.5],
+          [23.5, 117.5],
         ]}
         maxBoundsViscosity={1.0}
         className="leaflet-map"
         zoomControl={false}
         scrollWheelZoom={true}
       >
-        {/*
-          Layer 1: Màu sắc địa hình (đất liền, biển, địa hình)
-          voyager_nolabels = màu đẹp, KHÔNG có chữ
-        */}
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CartoDB</a>'
         />
-
-        {/*
-          Layer 2: Chỉ label tên tỉnh/huyện/xã của Việt Nam
-          only_labels = chỉ có chữ, không có màu nền
-          → Hiển thị tên địa danh chi tiết
-        */}
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png"
           opacity={1}
         />
 
-        {/* ── Biển Đông ── */}
+        {/* ── Quần đảo Hoàng Sa ── */}
+        {HOANG_SA_DOTS.map((dot, i) => (
+          <CircleMarker
+            key={`hs-${i}`}
+            center={[dot.lat, dot.lng]}
+            pathOptions={ISLAND_DOT_STYLE}
+            radius={dot.r}
+            interactive={false}
+          />
+        ))}
         <Marker
-          position={[15.5, 113.5]}
-          icon={makeLabelIcon("BIỂN ĐÔNG", 15, "#1d6fa4", true)}
+          position={[16.15, 111.15]}
+          icon={makeArchipelagoLabel("Q.đ. Hoàng Sa")}
           interactive={false}
         />
 
-        {/* ── Quần đảo Hoàng Sa (khoảng 16.5°N, 112°E) ── */}
+        {/* ── Quần đảo Trường Sa ── */}
+        {TRUONG_SA_DOTS.map((dot, i) => (
+          <CircleMarker
+            key={`ts-${i}`}
+            center={[dot.lat, dot.lng]}
+            pathOptions={ISLAND_DOT_STYLE}
+            radius={dot.r}
+            interactive={false}
+          />
+        ))}
         <Marker
-          position={[16.5, 112.0]}
-          icon={makeIslandIcon("Q.đ. Hoàng Sa")}
+          position={[8.40, 113.50]}
+          icon={makeArchipelagoLabel("Q.đ. Trường Sa")}
           interactive={false}
         />
 
-        {/* ── Quần đảo Trường Sa (khoảng 10°N, 114°E) ── */}
-        <Marker
-          position={[10.0, 114.2]}
-          icon={makeIslandIcon("Q.đ. Trường Sa")}
-          interactive={false}
-        />
-
+        {/* ── Marker tỉnh/thành ── */}
         {locations.map((loc, idx) => {
           const color = getMarkerColor(idx, locations.length);
           return (
