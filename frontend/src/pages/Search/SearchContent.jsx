@@ -42,24 +42,38 @@ const LocationBadge = ({ location, onClear }) => (
     📍 Đang lọc: <strong>{location}</strong>
     <button
       onClick={onClear}
-      style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: 0 }}
+      style={{
+        background: "none",
+        border: "none",
+        color: "#94a3b8",
+        cursor: "pointer",
+        padding: 0,
+      }}
     >
       <X size={14} />
     </button>
   </div>
 );
 
-const RiskRow = ({ label, key: riskKey, color, articles }) => {
+// 🟢 Bỏ chữ "key:", chỉ dùng "riskKey"
+const RiskRow = ({ label, riskKey, color, articles }) => {
   const count = countRisk(articles, riskKey);
   const percentage = pct(count, articles.length);
   return (
     <div className="risk-row">
       <div className="risk-label-row">
-        <span className="risk-label" style={{ color }}>{label}</span>
-        <span className="risk-count">{count} bài ({percentage}%)</span>
+        <span className="risk-label" style={{ color }}>
+          {label}
+        </span>
+        <span className="risk-count">
+          {count} bài ({percentage}%)
+        </span>
       </div>
       <div className="risk-bar-bg">
-        <div className="risk-bar-fill" style={{ width: `${percentage}%`, backgroundColor: color }} />
+        <div
+          className="risk-bar-fill"
+          style={{ width: `${percentage}%`, backgroundColor: color }}
+        />
       </div>
     </div>
   );
@@ -70,13 +84,22 @@ const Pagination = ({ pagination }) => {
   if (totalPages <= 1) return null;
   return (
     <div className="pagination">
-      <button className="page-btn" onClick={() => paginate(currentPage - 1)} disabled={currentPage === 1}>
+      <button
+        className="page-btn"
+        onClick={() => paginate(currentPage - 1)}
+        disabled={currentPage === 1}
+      >
         <ChevronLeft size={18} /> Trước
       </button>
       <span className="page-info">
-        Trang <strong style={{ color: "#0ea5e9" }}>{currentPage}</strong> / {totalPages}
+        Trang <strong style={{ color: "#0ea5e9" }}>{currentPage}</strong> /{" "}
+        {totalPages}
       </span>
-      <button className="page-btn" onClick={() => paginate(currentPage + 1)} disabled={currentPage === totalPages}>
+      <button
+        className="page-btn"
+        onClick={() => paginate(currentPage + 1)}
+        disabled={currentPage === totalPages}
+      >
         Sau <ChevronRight size={18} />
       </button>
     </div>
@@ -108,20 +131,25 @@ const SearchContent = () => {
     const loc = searchParams.get("location");
     if (loc) {
       updateFilter("location", loc);
-      setShowAdvanced(true);
+      setTimeout(() => {
+        setShowAdvanced(true);
+      }, 0);
     }
   }, [searchParams, updateFilter]);
 
   // Sidebar stats derived from filtered articles
   const stats = useMemo(() => {
-    if (!filteredArticles.length) return { highRisk: 0, topDisease: null, topCount: 0 };
+    if (!filteredArticles.length)
+      return { highRisk: 0, topDisease: null, topCount: 0 };
 
     const counts = filteredArticles.reduce((acc, a) => {
       if (a.disease_name) acc[a.disease_name] = (acc[a.disease_name] || 0) + 1;
       return acc;
     }, {});
 
-    const [topDisease, topCount] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0] ?? [null, 0];
+    const [topDisease, topCount] = Object.entries(counts).sort(
+      (a, b) => b[1] - a[1],
+    )[0] ?? [null, 0];
 
     return {
       highRisk: filteredArticles.filter((a) => a.risk_level === "HIGH").length,
@@ -142,7 +170,10 @@ const SearchContent = () => {
         <h2>Công cụ Tìm kiếm Thông minh</h2>
         <p>Tổng hợp thông tin y tế và dịch bệnh từ các nguồn báo chí điện tử</p>
         {hasLocationFilter && (
-          <LocationBadge location={filters.location} onClear={() => updateFilter("location", "Tất Cả")} />
+          <LocationBadge
+            location={filters.location}
+            onClear={() => updateFilter("location", "Tất Cả")}
+          />
         )}
       </div>
 
@@ -182,21 +213,38 @@ const SearchContent = () => {
         <div className="advanced-filters-panel">
           <div className="filter-group">
             <label>Loại Bệnh</label>
-            <select value={filters.disease || "Tất Cả"} onChange={(e) => updateFilter("disease", e.target.value)}>
+            <select
+              value={filters.disease || "Tất Cả"}
+              onChange={(e) => updateFilter("disease", e.target.value)}
+            >
               <option value="Tất Cả">Tất Cả Bệnh</option>
-              {uniqueOptions.diseases?.map((d) => <option key={d} value={d}>{d}</option>)}
+              {uniqueOptions.diseases?.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
             </select>
           </div>
           <div className="filter-group">
             <label>Địa Điểm</label>
-            <select value={filters.location || "Tất Cả"} onChange={(e) => updateFilter("location", e.target.value)}>
+            <select
+              value={filters.location || "Tất Cả"}
+              onChange={(e) => updateFilter("location", e.target.value)}
+            >
               <option value="Tất Cả">Toàn quốc</option>
-              {uniqueOptions.locations?.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
+              {uniqueOptions.locations?.map((loc) => (
+                <option key={loc} value={loc}>
+                  {loc}
+                </option>
+              ))}
             </select>
           </div>
           <div className="filter-group">
             <label>Mức Rủi Ro</label>
-            <select value={filters.risk_level || "Tất Cả"} onChange={(e) => updateFilter("risk_level", e.target.value)}>
+            <select
+              value={filters.risk_level || "Tất Cả"}
+              onChange={(e) => updateFilter("risk_level", e.target.value)}
+            >
               <option value="Tất Cả">Tất Cả</option>
               <option value="HIGH">Cao</option>
               <option value="MEDIUM">Trung bình</option>
@@ -214,12 +262,18 @@ const SearchContent = () => {
         {/* Articles list */}
         <div className="main-column">
           {isLoading ? (
-            <p style={{ textAlign: "center", padding: 40, color: "#0ea5e9" }}>⏳ Đang tổng hợp dữ liệu...</p>
+            <p style={{ textAlign: "center", padding: 40, color: "#0ea5e9" }}>
+              ⏳ Đang tổng hợp dữ liệu...
+            </p>
           ) : currentArticles.length === 0 ? (
-            <p style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>Không có dữ liệu phù hợp.</p>
+            <p style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>
+              Không có dữ liệu phù hợp.
+            </p>
           ) : (
             <>
-              {currentArticles.map((art) => <ArticleRow key={art.article_id} article={art} />)}
+              {currentArticles.map((art) => (
+                <ArticleRow key={art.article_id} article={art} />
+              ))}
               <Pagination pagination={pagination} />
             </>
           )}
@@ -254,8 +308,14 @@ const SearchContent = () => {
           <div className="card widget-card">
             <h3 style={{ margin: "0 0 16px" }}>Phân bố Mức độ Rủi ro</h3>
             <div className="risk-distribution">
-              {RISK_LEVELS.map((level) => (
-                <RiskRow key={level.key} {...level} articles={filteredArticles} />
+              {RISK_LEVELS.map(({ key, label, color }) => (
+                <RiskRow
+                  key={key}
+                  riskKey={key}
+                  label={label}
+                  color={color}
+                  articles={filteredArticles}
+                />
               ))}
             </div>
             <p className="risk-total">
