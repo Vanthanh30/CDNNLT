@@ -1,3 +1,4 @@
+from datetime import date, datetime
 from typing import Optional
 from pydantic import BaseModel
 from fastapi import FastAPI
@@ -5,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src import database
 import requests
 
-CHATBOT_SERVICE_URL = "http://localhost:8000/chat"
+CHATBOT_SERVICE_URL = "http://localhost:8001/chat"
 
 app = FastAPI(title="Disease Management API")
 
@@ -63,9 +64,21 @@ def filter_articles(
     )
 
 
+def serialize_rows(rows):
+    result = []
+    for row in rows:
+        new_row = {}
+        for k, v in row.items():
+            if isinstance(v, (date, datetime)):
+                new_row[k] = v.isoformat()
+            else:
+                new_row[k] = v
+        result.append(new_row)
+    return result
+
+
 @app.post("/api/chat")
 def chat(request: ChatRequest):
-    # 1. Lấy dữ liệu từ DB
     rows = database.search_chatbot_context(request.question, limit=5)
 
     if not rows:
@@ -74,10 +87,8 @@ def chat(request: ChatRequest):
             "sources": []
         }
 
-    # 2. Gọi chatbot-service
     ai_answer = call_chatbot_service(request.question, rows)
 
-    # 3. Trả sources
     sources = []
     for row in rows:
         sources.append({
@@ -93,13 +104,14 @@ def chat(request: ChatRequest):
         "sources": sources
     }
 
+
 def call_chatbot_service(question, rows):
     try:
         response = requests.post(
             CHATBOT_SERVICE_URL,
             json={
                 "question": question,
-                "context": rows
+                "context": serialize_rows(rows)  # ✅ fix
             },
             timeout=10
         )
@@ -112,7 +124,8 @@ def call_chatbot_service(question, rows):
     except Exception as e:
         print("❌ Lỗi gọi chatbot-service:", e)
         return "Không thể kết nối chatbot-service."
-    
+
+
 @app.get("/internal/search")
 def search_for_chatbot(question: str):
     return database.search_chatbot_context(question, limit=20)

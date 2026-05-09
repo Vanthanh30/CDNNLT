@@ -22,7 +22,7 @@ from mysql.connector import Error
 DB_HOST     = "localhost"
 DB_PORT     = 3306
 DB_USER     = "root"
-DB_PASSWORD = ""
+DB_PASSWORD = "123456"
 DB_NAME     = "disease_management"
 
 # ── Import VALID sets từ nlp_engine để validate trước khi lưu DB ──
