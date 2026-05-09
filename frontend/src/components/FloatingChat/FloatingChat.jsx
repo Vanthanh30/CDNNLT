@@ -1,10 +1,18 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Bot, Send, X, Link as LinkIcon } from "lucide-react";
+import { Bot, Send, X, Link as LinkIcon, Copy, Edit2 } from "lucide-react";
 import "./FloatingChat.css";
 
 // ── SUB-COMPONENT: BÓNG TIN NHẮN ──────────────────────────────
-const MessageBubble = ({ msg }) => {
-  // Hàm render text đơn giản có hỗ trợ xuống dòng và in đậm (Markdown cơ bản của GPT)
+const MessageBubble = ({
+  msg,
+  onCopy,
+  isEditing,
+  editText,
+  setEditText,
+  onEditStart,
+  onSaveEdit,
+  onCancelEdit,
+}) => {
   const renderText = (text) => {
     return text.split("\n").map((line, lineIndex) => (
       <React.Fragment key={lineIndex}>
@@ -22,6 +30,39 @@ const MessageBubble = ({ msg }) => {
     ));
   };
 
+  // 🟢 GIAO DIỆN KHI ĐANG CHỈNH SỬA (INLINE EDIT)
+  if (isEditing) {
+    return (
+      <div className={`ac-msg ${msg.role}`}>
+        <div className="ac-msg-bubble-wrap edit-mode">
+          <textarea
+            className="ac-edit-textarea"
+            value={editText}
+            onChange={(e) => {
+              setEditText(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = `${e.target.scrollHeight}px`;
+            }}
+            autoFocus
+            rows={1}
+          />
+          <div className="ac-edit-actions">
+            <button className="ac-btn-cancel" onClick={onCancelEdit}>
+              Hủy
+            </button>
+            <button
+              className="ac-btn-save"
+              onClick={() => onSaveEdit(msg.id, editText)}
+            >
+              Gửi lại
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 🟢 GIAO DIỆN TIN NHẮN BÌNH THƯỜNG
   return (
     <div className={`ac-msg ${msg.role}`}>
       {msg.role === "ai" && (
@@ -29,10 +70,10 @@ const MessageBubble = ({ msg }) => {
           <Bot size={12} />
         </div>
       )}
+
       <div className="ac-msg-bubble-wrap">
         <div className="ac-msg-bubble">{renderText(msg.text)}</div>
 
-        {/* 🟢 Danh sách nguồn tham khảo */}
         {msg.sources && msg.sources.length > 0 && (
           <div className="ac-msg-sources">
             <p className="source-title">
@@ -60,11 +101,25 @@ const MessageBubble = ({ msg }) => {
           </div>
         )}
       </div>
+
+      <div className="ac-msg-actions">
+        <button title="Copy" onClick={() => onCopy(msg.text)}>
+          <Copy size={12} />
+        </button>
+        {msg.role === "user" && (
+          <button
+            title="Chỉnh sửa"
+            onClick={() => onEditStart(msg.id, msg.text)}
+          >
+            <Edit2 size={12} />
+          </button>
+        )}
+      </div>
     </div>
   );
 };
 
-// ── MAIN COMPONENT: KHUNG CHAT TỔNG ──────────────────────────────
+// ── MAIN COMPONENT ──────────────────────────────
 const FloatingChat = ({ stats }) => {
   const [showChat, setShowChat] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -73,10 +128,13 @@ const FloatingChat = ({ stats }) => {
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
 
-  const bottomRef = useRef(null);
-  const textareaRef = useRef(null); // Ref để điều khiển chiều cao ô nhập liệu
+  // 🟢 STATES CHO TÍNH NĂNG INLINE EDIT
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState("");
 
-  // Khởi tạo lời chào
+  const bottomRef = useRef(null);
+  const textareaRef = useRef(null);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setMessages([
@@ -90,88 +148,111 @@ const FloatingChat = ({ stats }) => {
     return () => clearTimeout(timer);
   }, [stats]);
 
-  // Cuộn xuống tin nhắn mới nhất
   useEffect(() => {
-    if (showChat) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
+    if (showChat) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, typing, showChat]);
 
-  // 🟢 HÀM TỰ ĐỘNG THAY ĐỔI CHIỀU CAO TEXTAREA
   const handleInput = (e) => {
     setInput(e.target.value);
-    const el = textareaRef.current;
-    if (el) {
-      el.style.height = "auto"; // Reset để đo lại
-      el.style.height = `${el.scrollHeight}px`; // Nới rộng theo nội dung
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   };
 
-  // 🟢 HÀM GỌI API (SEARCH NỘI BỘ VÀ TỰ SINH CÂU TRẢ LỜI)
-  const send = async (quickText) => {
-    const text = quickText || input.trim();
-    if (!text || typing) return;
+  const handleCopy = (text) => navigator.clipboard.writeText(text);
 
-    setInput("");
+  // 🟢 CÁC HÀM XỬ LÝ CHỈNH SỬA TIN NHẮN
+  const handleEditStart = (id, text) => {
+    setEditingId(id);
+    setEditText(text);
+  };
 
-    // Reset lại chiều cao textarea sau khi gửi
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditText("");
+  };
 
-    setMessages((prev) => [...prev, { id: Date.now(), role: "user", text }]);
+  // Hàm Gửi lại tin nhắn đã sửa
+  const handleSaveEdit = async (msgId, newText) => {
+    if (!newText.trim() || typing) return;
+
+    setEditingId(null); // Tắt chế độ Edit
+
+    // Tìm vị trí của tin nhắn được sửa
+    const msgIndex = messages.findIndex((m) => m.id === msgId);
+    if (msgIndex === -1) return;
+
+    // Cắt bỏ tin nhắn cũ và toàn bộ các tin nhắn sau đó (giống ChatGPT)
+    const updatedMessages = messages.slice(0, msgIndex);
+
+    // Thêm tin nhắn user mới cập nhật vào
+    const newUserMsg = { id: Date.now(), role: "user", text: newText.trim() };
+    setMessages([...updatedMessages, newUserMsg]);
     setTyping(true);
 
     try {
-      const response = await fetch(
-        `http://localhost:8000/internal/search?question=${encodeURIComponent(text)}`,
-      );
-      if (!response.ok) throw new Error("Lỗi kết nối API");
+      const response = await fetch("http://localhost:8000/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: newText.trim() }),
+      });
 
-      const rows = await response.json();
-
-      let answerText = "";
-      let sourcesData = [];
-
-      if (!rows || rows.length === 0) {
-        answerText =
-          "❌ Không tìm thấy dữ liệu báo cáo nào phù hợp với câu hỏi của bạn.";
-      } else {
-        const resultObj = {};
-        rows.forEach((row) => {
-          const disease = row.disease_name || "Bệnh chưa xác định";
-          const location = row.location || "Nhiều địa phương";
-          if (!resultObj[disease]) resultObj[disease] = [];
-          resultObj[disease].push(location);
-        });
-
-        const answerParts = [];
-        for (const [disease, locations] of Object.entries(resultObj)) {
-          const uniqueLocations = [...new Set(locations)];
-          answerParts.push(
-            `📌 Dịch bệnh **${disease}** hiện đang xuất hiện tại: ${uniqueLocations.join(", ")}`,
-          );
-        }
-
-        answerText =
-          "Dựa trên dữ liệu hệ thống ghi nhận được:\n\n" +
-          answerParts.join("\n\n");
-        sourcesData = rows.map((row) => ({
-          title: row.title,
-          url: row.url,
-          disease_name: row.disease_name,
-          location: row.location,
-          risk_level: row.risk_level,
-        }));
-      }
+      if (!response.ok) throw new Error("Lỗi API Chat");
+      const data = await response.json();
 
       setMessages((prev) => [
         ...prev,
         {
           id: Date.now() + 1,
           role: "ai",
-          text: answerText,
-          sources: sourcesData,
+          text: data.answer,
+          sources: data.sources,
+        },
+      ]);
+    } catch (error) {
+      console.error(error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          role: "ai",
+          text: "Xin lỗi, không thể kết nối tới máy chủ Sentinel.",
+        },
+      ]);
+    } finally {
+      setTyping(false);
+    }
+  };
+
+  // Hàm Gửi tin nhắn mới như bình thường
+  const send = async (quickText) => {
+    const text = quickText || input.trim();
+    if (!text || typing) return;
+
+    setInput("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+
+    setMessages((prev) => [...prev, { id: Date.now(), role: "user", text }]);
+    setTyping(true);
+
+    try {
+      const response = await fetch("http://localhost:8000/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: text }),
+      });
+
+      if (!response.ok) throw new Error("Lỗi API Chat");
+      const data = await response.json();
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          role: "ai",
+          text: data.answer,
+          sources: data.sources,
         },
       ]);
     } catch (error) {
@@ -209,7 +290,6 @@ const FloatingChat = ({ stats }) => {
 
       {showChat && (
         <div className={`ac-chat-box ${closing ? "closing" : ""}`}>
-          {/* Header */}
           <div className="ac-chat-header">
             <div className="ac-bot-info">
               <div className="ac-bot-avatar">
@@ -225,10 +305,20 @@ const FloatingChat = ({ stats }) => {
             </button>
           </div>
 
-          {/* Messages Area */}
           <div className="ac-chat-messages">
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} msg={msg} />
+              <MessageBubble
+                key={msg.id}
+                msg={msg}
+                onCopy={handleCopy}
+                // Truyền props cho Inline Edit
+                isEditing={editingId === msg.id}
+                editText={editText}
+                setEditText={setEditText}
+                onEditStart={handleEditStart}
+                onSaveEdit={handleSaveEdit}
+                onCancelEdit={handleCancelEdit}
+              />
             ))}
 
             {typing && (
@@ -246,20 +336,14 @@ const FloatingChat = ({ stats }) => {
             <div ref={bottomRef} />
           </div>
 
-          {/* Quick Buttons */}
           <div className="ac-quick-btns">
-            {[
-              "Tình hình dịch tả lợn?",
-              "Sốt xuất huyết ở đâu?",
-              "Mức độ rủi ro?",
-            ].map((q, i) => (
+            {["Tình hình dịch tả lợn?", "Sốt xuất huyết ở đâu?"].map((q, i) => (
               <button key={i} className="ac-quick" onClick={() => send(q)}>
                 {q}
               </button>
             ))}
           </div>
 
-          {/* Input Area */}
           <div className="ac-chat-input">
             <textarea
               ref={textareaRef}
