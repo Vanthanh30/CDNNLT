@@ -137,6 +137,29 @@ def save_raw_article(
         conn.close()
 
 
+def delete_raw_article(raw_article_id: str) -> bool:
+    """
+    Xóa RAW_ARTICLE không liên quan dịch bệnh để processor không xử lý lặp lại.
+    Chỉ dùng khi bài đã bị bộ lọc AI xác nhận là không phù hợp.
+    """
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM RAW_ARTICLE WHERE id = %s", (raw_article_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Error as e:
+        conn.rollback()
+        print(f"❌ delete_raw_article: {e}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
 # ========================
 # PROCESSOR SERVICE
 # ========================

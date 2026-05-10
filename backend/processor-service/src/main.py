@@ -13,11 +13,13 @@ import time
 import re
 from datetime import datetime
 
+from ai_filter import classify_article
 from nlp_engine import extract_info, is_valid_disease, is_valid_location
 from database import (
     get_unprocessed_articles,
     save_processed_article,
     save_article_only,          # ← hàm mới, xem database.py
+    delete_raw_article,
     init_db,
 )
 
@@ -71,6 +73,7 @@ def process_batch(limit: int = 20):
     print(f"\n📋 Xử lý {len(articles)} bài...")
     success = 0
     partial = 0   # lưu ARTICLE nhưng không có event (thiếu disease/location)
+    rejected = 0  # AI xác định không liên quan dịch bệnh
     failed  = 0
 
     for art in articles:
@@ -81,6 +84,22 @@ def process_batch(limit: int = 20):
         print(f"\n🧠 [{raw_id[:8]}...] {title[:70]}")
 
         try:
+            ai_result = classify_article(title, content)
+            if not ai_result["is_relevant"]:
+                print(
+                    "  🤖 AI loại bài không liên quan dịch bệnh: "
+                    f"{ai_result.get('method', 'unknown')} | "
+                    f"{ai_result.get('reason', 'không phù hợp')} "
+                    f"(confidence={ai_result.get('confidence', 0):.2f})"
+                )
+                if delete_raw_article(raw_id):
+                    rejected += 1
+                    print("  🗑️ Đã xóa RAW_ARTICLE khỏi hàng đợi")
+                else:
+                    failed += 1
+                    print("  ❌ Không xóa được RAW_ARTICLE")
+                continue
+
             result = extract_info(title=title, content=content)
 
             print(f"  🦠 Bệnh    : {result['disease_name']} ({'✅' if result['disease_valid'] else '❌'})")
@@ -146,8 +165,11 @@ def process_batch(limit: int = 20):
             print(f"  ❌ Lỗi xử lý: {e}")
             failed += 1
 
-    print(f"\n📊 Kết quả batch: ✅ {success} đầy đủ | ℹ️  {partial} article-only | ❌ {failed} lỗi")
-    return success + partial
+    print(
+        f"\n📊 Kết quả batch: ✅ {success} đầy đủ | "
+        f"ℹ️  {partial} article-only | 🗑️ {rejected} bị loại | ❌ {failed} lỗi"
+    )
+    return success + partial + rejected
 
 
 # ========================

@@ -15,6 +15,7 @@ from spiders import (
     crawl_baovethucvat,
     get_content,
 )
+from ai_filter import classify_article, get_filter_status
 from database import save_raw_article, init_db
 
 
@@ -149,6 +150,7 @@ def crawl_all_sources(keywords: list) -> list:
 def main():
     print("\n" + "=" * 60)
     print("🔍 Bắt đầu thu thập dữ liệu...")
+    print(f"🤖 Bộ lọc AI: {get_filter_status()}")
 
     # Crawl từ tất cả nguồn
     all_items = crawl_all_sources(ALL_KEYWORDS)
@@ -184,6 +186,24 @@ def main():
                 print("  ⏭️ Không phải bài dịch bệnh VN → bỏ qua")
                 skipped += 1
                 continue
+
+            ai_result = classify_article(title, content)
+            if not ai_result["is_relevant"]:
+                print(
+                    "  🤖 AI loại bài: "
+                    f"{ai_result.get('reason', 'không phù hợp')} "
+                    f"(confidence={ai_result.get('confidence', 0):.2f})"
+                )
+                skipped += 1
+                continue
+
+            print(
+                "  🤖 AI giữ bài: "
+                f"{ai_result.get('method', 'unknown')} | "
+                f"{ai_result.get('category', 'unknown')} | "
+                f"{ai_result.get('primary_topic', '')} "
+                f"(confidence={ai_result.get('confidence', 0):.2f})"
+            )
 
             ok = save_raw_article(
                 title=title,
