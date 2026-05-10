@@ -1,4 +1,3 @@
-
 import time
 import uuid
 import hashlib
@@ -9,22 +8,25 @@ from mysql.connector import Error
 # ========================
 # CONFIG
 # ========================
-DB_HOST     = "localhost"
-DB_PORT     = 3306
-DB_USER     = "root"
-DB_PASSWORD = ""
-DB_NAME     = "disease_management"
+DB_HOST = "localhost"
+DB_PORT = 3306
+DB_USER = "root"
+DB_PASSWORD = "123456"
+DB_NAME = "disease_management"
+
 
 # ── Import VALID sets từ nlp_engine để validate trước khi lưu DB ──
 # Lazy import để tránh circular dependency
 def _get_valid_sets():
     from nlp_engine import VALID_LOCATIONS, VALID_DISEASES
+
     return VALID_LOCATIONS, VALID_DISEASES
 
 
 # ========================
 # HELPERS
 # ========================
+
 
 def generate_id() -> str:
     return str(uuid.uuid4())
@@ -66,7 +68,10 @@ def init_db():
 # CRAWLER SERVICE
 # ========================
 
-def get_or_create_source(name: str = "Unknown", source_type: str = "News Website") -> str | None:
+
+def get_or_create_source(
+    name: str = "Unknown", source_type: str = "News Website"
+) -> str | None:
     conn = get_connection()
     if not conn:
         return None
@@ -108,8 +113,8 @@ def save_raw_article(
 
     cursor = conn.cursor()
     try:
-        source_id    = get_or_create_source(source_name, "News Website")
-        raw_id       = generate_id()
+        source_id = get_or_create_source(source_name, "News Website")
+        raw_id = generate_id()
         content_hash = generate_hash(link + (content or ""))
 
         cursor.execute(
@@ -163,6 +168,7 @@ def delete_raw_article(raw_article_id: str) -> bool:
 # ========================
 # PROCESSOR SERVICE
 # ========================
+
 
 def get_unprocessed_articles(limit: int = 20) -> list:
     conn = get_connection()
@@ -341,7 +347,7 @@ def save_processed_article(
     """
     # Guard tại database layer (backup cho guard ở processor)
     disease_id = get_or_create_disease(disease_name)
-    region_id  = get_or_create_region(location)
+    region_id = get_or_create_region(location)
 
     if not disease_id:
         print(f"  ❌ Không lưu: disease_id = None ('{disease_name}')")
@@ -357,8 +363,8 @@ def save_processed_article(
     cursor = conn.cursor()
     try:
         article_id = generate_id()
-        event_id   = generate_id()
-        static_id  = generate_id()
+        event_id = generate_id()
+        static_id = generate_id()
 
         # ARTICLE
         cursor.execute(
@@ -390,7 +396,14 @@ def save_processed_article(
             VALUES
                 (%s, %s, %s, %s, %s, %s)
             """,
-            (static_id, event_id, region_id, cases_infected, cases_dead, cases_recovered),
+            (
+                static_id,
+                event_id,
+                region_id,
+                cases_infected,
+                cases_dead,
+                cases_recovered,
+            ),
         )
 
         conn.commit()
@@ -409,6 +422,7 @@ def save_processed_article(
 # ========================
 # API GATEWAY
 # ========================
+
 
 def get_all_processed_articles(limit: int = 100) -> list:
     conn = get_connection()
@@ -453,13 +467,13 @@ def get_all_processed_articles(limit: int = 100) -> list:
 
 
 def filter_articles(
-    keyword: str      = None,
+    keyword: str = None,
     disease_name: str = None,
-    location: str     = None,
-    from_date: str    = None,
-    to_date: str      = None,
-    risk_level: str   = None,
-    limit: int        = 50,
+    location: str = None,
+    from_date: str = None,
+    to_date: str = None,
+    risk_level: str = None,
+    limit: int = 50,
 ) -> list:
     conn = get_connection()
     if not conn:
@@ -534,6 +548,7 @@ def filter_articles(
 # ========================
 # STATS HELPERS
 # ========================
+
 
 def get_stats_by_disease(limit: int = 20) -> list:
     conn = get_connection()
