@@ -3,16 +3,12 @@ import uuid
 import hashlib
 import mysql.connector
 from mysql.connector import Error
-
+from datetime import date, datetime
+from mysql.connector import Error
 
 # ========================
 # CONFIG
 # ========================
-DB_HOST     = "localhost"
-DB_PORT     = 3306
-DB_USER     = "root"
-DB_PASSWORD = "123456"
-DB_NAME     = "disease_management"
 DB_HOST = "localhost"
 DB_PORT = 3306
 DB_USER = "root"
@@ -21,17 +17,14 @@ DB_NAME = "disease_management"
 
 
 # ── Import VALID sets từ nlp_engine để validate trước khi lưu DB ──
-# Lazy import để tránh circular dependency
 def _get_valid_sets():
     from nlp_engine import VALID_LOCATIONS, VALID_DISEASES
-
     return VALID_LOCATIONS, VALID_DISEASES
 
 
 # ========================
 # HELPERS
 # ========================
-
 
 def generate_id() -> str:
     return str(uuid.uuid4())
@@ -70,9 +63,152 @@ def init_db():
 
 
 # ========================
-# CRAWLER SERVICE
+# DATE HELPER
 # ========================
 
+# ── Cửa sổ thời gian hợp lệ ──
+# Cào 10 năm (2016-01-01 → hôm nay) để phục vụ tính năng lọc theo ngày/tháng/năm.
+# Chặn cứng bài trước 2016 và bài tương lai (lỗi timezone).
+_DB_DATE_MIN = datetime(2016, 1, 1)   # 10 năm về trước tính từ 2026
+
+
+def _is_date_valid_for_db(dt: datetime) -> bool:
+    """
+    Trả về True nếu ngày hợp lệ:
+      - >= 2016-01-01           (chặn epoch 1970, bài cổ vô nghĩa)
+      - <= now + 1 ngày         (chặn ngày tương lai do lỗi timezone)
+    KHÔNG giới hạn 30 ngày nữa — cào toàn bộ 10 năm để lọc.
+    """
+    from datetime import timedelta
+    now = datetime.now()
+    if dt < _DB_DATE_MIN:
+        return False
+    if dt > now + timedelta(days=1):
+        return False
+    return True
+
+
+def _normalize_published_at(published_at) -> str | None:
+    """
+    Chuẩn hóa published_at về dạng 'YYYY-MM-DD HH:MM:SS' mà MySQL datetime chấp nhận.
+    Còn validate khoảng ngày: loại bỏ 1970, quá cũ, tương lai → lưu NULL.
+    Trả về None nếu không parse được hoặc ngoài khoảng — DB lưu NULL, crawled_at vẫn có.
+
+    Nhận vào:
+      - None / ""                         → None
+      - datetime object                   → format trực tiếp
+      - date object                       → thêm 00:00:00
+      - str 'YYYY-MM-DD HH:MM:SS'         → giữ nguyên
+      - str 'YYYY-MM-DD'                  → thêm 00:00:00
+      - str ISO 8601 với timezone         → strip timezone, format lại
+      - str RFC 2822                      → parse rồi format
+    """
+    if published_at is None or published_at == "":
+        return None
+
+    # datetime object
+    if isinstance(published_at, datetime):
+        if not _is_date_valid_for_db(published_at):
+            print(f"  ⚠️  published_at ngoài khoảng hợp lệ: {published_at} → lưu NULL")
+            return None
+        return published_at.strftime("%Y-%m-%d %H:%M:%S")
+
+    # date object
+    if isinstance(published_at, date):
+        dt = datetime(published_at.year, published_at.month, published_at.day)
+        if not _is_date_valid_for_db(dt):
+            print(f"  ⚠️  published_at ngoài khoảng hợp lệ: {published_at} → lưu NULL")
+            return None
+        return published_at.strftime("%Y-%m-%d") + " 00:00:00"
+
+    # String — thử các format phổ biến
+    if isinstance(published_at, str):
+        raw = published_at.strip()
+        if not raw:
+            return None
+
+        # Đã đúng format MySQL — vẫn PHẢI validate khoảng ngày
+        import re
+        if re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$", raw):
+            try:
+                dt = datetime.strptime(raw, "%Y-%m-%d %H:%M:%S")
+                if not _is_date_valid_for_db(dt):
+                    print(f"  ⚠️  published_at ngoài khoảng: {raw} → lưu NULL")
+                    return None
+                return raw
+            except Exception:
+                return None
+
+        # ISO 8601: 2026-05-09T10:30:00+07:00 hoặc ...Z
+        try:
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            dt = dt.replace(tzinfo=None)
+            if not _is_date_valid_for_db(dt):
+                print(f"  ⚠️  published_at ngoài khoảng: {raw} → lưu NULL")
+                return None
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+
+        # RFC 2822: Fri, 09 May 2026 10:30:00 +0700
+        try:
+            from email.utils import parsedate_to_datetime
+            dt = parsedate_to_datetime(raw).replace(tzinfo=None)
+            if not _is_date_valid_for_db(dt):
+                print(f"  ⚠️  published_at ngoài khoảng: {raw} → lưu NULL")
+                return None
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+
+        # Chỉ có ngày YYYY-MM-DD
+        m = re.match(r"^(\d{4}-\d{2}-\d{2})$", raw)
+        if m:
+            try:
+                dt = datetime.strptime(m.group(1), "%Y-%m-%d")
+                if not _is_date_valid_for_db(dt):
+                    print(f"  ⚠️  published_at ngoài khoảng: {raw} → lưu NULL")
+                    return None
+                return m.group(1) + " 00:00:00"
+            except Exception:
+                pass
+
+        # DD/MM/YYYY
+        m = re.match(r"^(\d{2})/(\d{2})/(\d{4})$", raw)
+        if m:
+            try:
+                dt = datetime.strptime(
+                    f"{m.group(3)}-{m.group(2)}-{m.group(1)}", "%Y-%m-%d"
+                )
+                if not _is_date_valid_for_db(dt):
+                    print(f"  ⚠️  published_at ngoài khoảng: {raw} → lưu NULL")
+                    return None
+                return f"{m.group(3)}-{m.group(2)}-{m.group(1)} 00:00:00"
+            except Exception:
+                pass
+
+        # YYYY-MM-DD HH:MM (không có giây)
+        m = re.match(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})$", raw)
+        if m:
+            try:
+                dt = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M")
+                if not _is_date_valid_for_db(dt):
+                    print(f"  ⚠️  published_at ngoài khoảng: {raw} → lưu NULL")
+                    return None
+                return m.group(1) + ":00"
+            except Exception:
+                pass
+
+        print(f"  ⚠️  Không parse được published_at: '{raw}' → lưu NULL")
+        return None
+
+    print(f"  ⚠️  published_at kiểu không hợp lệ: {type(published_at)} → lưu NULL")
+    return None
+
+
+# ========================
+# CRAWLER SERVICE
+# ========================
 
 def get_or_create_source(
     name: str = "Unknown", source_type: str = "News Website"
@@ -112,15 +248,24 @@ def save_raw_article(
     source_name: str = "Unknown",
     published_at=None,
 ) -> bool:
+    """
+    Lưu RAW_ARTICLE.
+    published_at được chuẩn hóa qua _normalize_published_at() trước khi lưu.
+    Nếu không parse được → lưu NULL (không crash).
+    Duplicate URL → trả về False (không phải lỗi).
+    """
     conn = get_connection()
     if not conn:
         return False
 
     cursor = conn.cursor()
     try:
-        source_id = get_or_create_source(source_name, "News Website")
-        raw_id = generate_id()
+        source_id    = get_or_create_source(source_name, "News Website")
+        raw_id       = generate_id()
         content_hash = generate_hash(link + (content or ""))
+
+        # ── Chuẩn hóa published_at ──
+        pub_at_val = _normalize_published_at(published_at)
 
         cursor.execute(
             """
@@ -129,10 +274,12 @@ def save_raw_article(
             VALUES
                 (%s, %s, %s, %s, %s, %s, NOW(), %s)
             """,
-            (raw_id, source_id, link, title, content, published_at, content_hash),
+            (raw_id, source_id, link, title, content, pub_at_val, content_hash),
         )
         conn.commit()
-        print(f"  ✅ RAW_ARTICLE: {(title or '')[:60]}...")
+
+        date_info = f"published_at={pub_at_val}" if pub_at_val else "published_at=NULL"
+        print(f"  ✅ RAW_ARTICLE [{date_info}]: {(title or '')[:60]}...")
         return True
 
     except Error as e:
@@ -147,10 +294,13 @@ def save_raw_article(
         conn.close()
 
 
+# save_raw_article_v2 giờ chỉ là alias để tránh breaking change nếu có nơi nào import
+save_raw_article_v2 = save_raw_article
+
+
 # ========================
 # PROCESSOR SERVICE
 # ========================
-
 
 def get_unprocessed_articles(limit: int = 20) -> list:
     conn = get_connection()
@@ -180,7 +330,6 @@ def get_unprocessed_articles(limit: int = 20) -> list:
 def get_or_create_disease(name: str) -> str | None:
     """
     Chỉ INSERT nếu name có trong VALID_DISEASES.
-    Từ chối lưu "Không xác định" hay tên bệnh rác.
     """
     name = (name or "").strip()
 
@@ -194,7 +343,7 @@ def get_or_create_disease(name: str) -> str | None:
             print(f"  ⚠️  Từ chối lưu disease không hợp lệ: '{name}'")
             return None
     except Exception:
-        pass  # Nếu import lỗi, bỏ qua validate
+        pass
 
     conn = get_connection()
     if not conn:
@@ -227,7 +376,6 @@ def get_or_create_disease(name: str) -> str | None:
 def get_or_create_region(name: str) -> str | None:
     """
     Chỉ INSERT nếu name có trong VALID_LOCATIONS (63 tỉnh/thành).
-    Từ chối lưu "Không xác định", "Bộ Y Tế", "Trung Quốc", v.v.
     """
     name = (name or "").strip()
 
@@ -241,7 +389,7 @@ def get_or_create_region(name: str) -> str | None:
             print(f"  ⚠️  Từ chối lưu region không hợp lệ: '{name}'")
             return None
     except Exception:
-        pass  # Nếu import lỗi, bỏ qua validate
+        pass
 
     conn = get_connection()
     if not conn:
@@ -276,12 +424,6 @@ def save_article_only(
     summary: str,
     content_clean: str,
 ) -> bool:
-    """
-    Lưu ARTICLE mà không tạo DISEASE_EVENT / STATIC.
-    Dùng khi NLP không extract được disease/location hợp lệ.
-    Bài này sẽ được đánh dấu là đã xử lý (không bị re-process)
-    nhưng không sinh dữ liệu rác vào event table.
-    """
     conn = get_connection()
     if not conn:
         return False
@@ -323,13 +465,8 @@ def save_processed_article(
     cases_dead: int = 0,
     cases_recovered: int = 0,
 ) -> bool:
-    """
-    Lưu đầy đủ: RAW_ARTICLE → ARTICLE → DISEASE_EVENT → STATIC
-    Từ chối nếu disease_name hoặc location không hợp lệ.
-    """
-    # Guard tại database layer (backup cho guard ở processor)
     disease_id = get_or_create_disease(disease_name)
-    region_id = get_or_create_region(location)
+    region_id  = get_or_create_region(location)
 
     if not disease_id:
         print(f"  ❌ Không lưu: disease_id = None ('{disease_name}')")
@@ -345,10 +482,9 @@ def save_processed_article(
     cursor = conn.cursor()
     try:
         article_id = generate_id()
-        event_id = generate_id()
-        static_id = generate_id()
+        event_id   = generate_id()
+        static_id  = generate_id()
 
-        # ARTICLE
         cursor.execute(
             """
             INSERT INTO ARTICLE
@@ -359,7 +495,6 @@ def save_processed_article(
             (article_id, raw_article_id, summary, content_clean),
         )
 
-        # DISEASE_EVENT
         cursor.execute(
             """
             INSERT INTO DISEASE_EVENT
@@ -370,7 +505,6 @@ def save_processed_article(
             (event_id, article_id, region_id, disease_id, event_date, risk_level),
         )
 
-        # STATIC
         cursor.execute(
             """
             INSERT INTO STATIC
@@ -379,12 +513,8 @@ def save_processed_article(
                 (%s, %s, %s, %s, %s, %s)
             """,
             (
-                static_id,
-                event_id,
-                region_id,
-                cases_infected,
-                cases_dead,
-                cases_recovered,
+                static_id, event_id, region_id,
+                cases_infected, cases_dead, cases_recovered,
             ),
         )
 
@@ -405,7 +535,6 @@ def save_processed_article(
 # API GATEWAY
 # ========================
 
-
 def get_all_processed_articles(limit: int = 100) -> list:
     conn = get_connection()
     if not conn:
@@ -420,6 +549,7 @@ def get_all_processed_articles(limit: int = 100) -> list:
                 r.title,
                 r.url,
                 r.content     AS raw_content,
+                r.published_at,
                 a.summary,
                 a.content_clean,
                 d.name        AS disease_name,
@@ -468,6 +598,7 @@ def filter_articles(
             a.id          AS article_id,
             r.title,
             r.url,
+            r.published_at,
             a.summary,
             a.content_clean,
             d.name        AS disease_name,
@@ -531,7 +662,6 @@ def filter_articles(
 # STATS HELPERS
 # ========================
 
-
 def get_stats_by_disease(limit: int = 20) -> list:
     conn = get_connection()
     if not conn:
@@ -586,6 +716,181 @@ def get_stats_by_region(limit: int = 20) -> list:
             (limit,),
         )
         return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_articles_by_date(
+    from_date: str = None,
+    to_date: str = None,
+    limit: int = 60,
+) -> list:
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor(dictionary=True)
+
+    query = """
+        SELECT
+            DATE(r.published_at)   AS pub_date,
+            COUNT(r.id)            AS total_articles,
+            COUNT(a.id)            AS processed
+        FROM RAW_ARTICLE r
+        LEFT JOIN ARTICLE a ON a.raw_article_id = r.id
+        WHERE r.published_at IS NOT NULL
+    """
+    params = []
+
+    if from_date:
+        query += " AND DATE(r.published_at) >= %s"
+        params.append(from_date)
+    if to_date:
+        query += " AND DATE(r.published_at) <= %s"
+        params.append(to_date)
+
+    query += " GROUP BY pub_date ORDER BY pub_date DESC LIMIT %s"
+    params.append(int(limit))
+
+    try:
+        cursor.execute(query, tuple(params))
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_daily_stats(
+    from_date: str = None,
+    to_date: str = None,
+    limit: int = 60,
+) -> list:
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor(dictionary=True)
+
+    query = """
+        SELECT
+            de.event_date,
+            COUNT(de.id)               AS total_events,
+            SUM(s.cases_infected)      AS total_infected,
+            SUM(s.cases_dead)          AS total_dead,
+            SUM(s.cases_recovered)     AS total_recovered
+        FROM DISEASE_EVENT de
+        LEFT JOIN STATIC s ON s.event_id = de.id
+        WHERE de.event_date IS NOT NULL
+    """
+    params = []
+
+    if from_date:
+        query += " AND de.event_date >= %s"
+        params.append(from_date)
+    if to_date:
+        query += " AND de.event_date <= %s"
+        params.append(to_date)
+
+    query += " GROUP BY de.event_date ORDER BY de.event_date DESC LIMIT %s"
+    params.append(int(limit))
+
+    try:
+        cursor.execute(query, tuple(params))
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_articles_date_range(
+    from_date: str,
+    to_date: str,
+    limit: int = 100,
+) -> list:
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor(dictionary=True)
+
+    query = """
+        SELECT
+            DATE(r.published_at)  AS pub_date,
+            r.title,
+            r.url,
+            r.published_at,
+            a.summary,
+            d.name                AS disease_name,
+            rg.name               AS location,
+            de.risk_level,
+            s.cases_infected,
+            s.cases_dead
+        FROM RAW_ARTICLE r
+        LEFT JOIN ARTICLE a        ON a.raw_article_id = r.id
+        LEFT JOIN DISEASE_EVENT de ON de.article_id    = a.id
+        LEFT JOIN DISEASE d        ON de.disease_id    = d.id
+        LEFT JOIN REGION rg        ON de.region_id     = rg.id
+        LEFT JOIN STATIC s         ON s.event_id       = de.id
+        WHERE r.published_at IS NOT NULL
+          AND DATE(r.published_at) BETWEEN %s AND %s
+        ORDER BY r.published_at DESC
+        LIMIT %s
+    """
+
+    try:
+        cursor.execute(query, (from_date, to_date, int(limit)))
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_source_stats() -> list:
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT
+                s.name               AS source_name,
+                COUNT(r.id)          AS total_raw,
+                COUNT(a.id)          AS total_processed,
+                MAX(r.crawled_at)    AS last_crawled,
+                MIN(r.published_at)  AS oldest_article,
+                MAX(r.published_at)  AS newest_article
+            FROM SOURCE s
+            JOIN RAW_ARTICLE r  ON r.source_id = s.id
+            LEFT JOIN ARTICLE a ON a.raw_article_id = r.id
+            GROUP BY s.id, s.name
+            ORDER BY total_raw DESC
+            """
+        )
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_unprocessed_count() -> int:
+    conn = get_connection()
+    if not conn:
+        return 0
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT COUNT(*)
+            FROM RAW_ARTICLE r
+            LEFT JOIN ARTICLE a ON a.raw_article_id = r.id
+            WHERE a.id IS NULL
+            """
+        )
+        row = cursor.fetchone()
+        return row[0] if row else 0
     finally:
         cursor.close()
         conn.close()
