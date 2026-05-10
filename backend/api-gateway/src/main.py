@@ -1,12 +1,14 @@
+from datetime import date, datetime
 import sys
 from pathlib import Path
 from typing import Optional
+from pydantic import BaseModel
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-
+import requests
 from . import database
 
 
@@ -14,6 +16,8 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 REPORT_SERVICE_DIR = BASE_DIR / "report-service"
 
 load_dotenv(REPORT_SERVICE_DIR / ".env")
+
+CHATBOT_SERVICE_URL = "http://localhost:8001/chat"
 
 app = FastAPI(title="Disease Management API")
 
@@ -24,6 +28,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class ChatRequest(BaseModel):
+    question: str
 
 
 @app.on_event("startup")
@@ -252,3 +260,71 @@ def download_weekly_report():
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+
+def serialize_rows(rows):
+    result = []
+    for row in rows:
+        new_row = {}
+        for k, v in row.items():
+            if isinstance(v, (date, datetime)):
+                new_row[k] = v.isoformat()
+            else:
+                new_row[k] = v
+        result.append(new_row)
+    return result
+
+
+@app.post("/api/chat")
+def chat(request: ChatRequest):
+    rows = database.search_chatbot_context(request.question, limit=5)
+
+    if not rows:
+        return {
+            "answer": "Không tìm thấy dữ liệu phù hợp.",
+            "sources": []
+        }
+
+    ai_answer = call_chatbot_service(request.question, rows)
+
+    sources = []
+    for row in rows:
+        sources.append({
+            "title": row.get("title"),
+            "url": row.get("url"),
+            "disease_name": row.get("disease_name"),
+            "location": row.get("location"),
+            "risk_level": row.get("risk_level")
+        })
+
+    return {
+        "answer": ai_answer,
+        "sources": sources
+    }
+
+
+def call_chatbot_service(question, rows):
+    try:
+        response = requests.post(
+            CHATBOT_SERVICE_URL,
+            json={
+                "question": question,
+                "context": serialize_rows(rows)  # ✅ fix
+            },
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            return response.json().get("answer")
+
+        return "Chatbot service lỗi."
+
+    except Exception as e:
+        print("❌ Lỗi gọi chatbot-service:", e)
+        return "Không thể kết nối chatbot-service."
+
+
+@app.get("/internal/search")
+def search_for_chatbot(question: str):
+    return database.search_chatbot_context(question, limit=20)
