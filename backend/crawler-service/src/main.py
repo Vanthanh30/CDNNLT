@@ -1,8 +1,15 @@
 """
-main.py (crawler-service) - Thu thập bài báo dịch bệnh Việt Nam từ nhiều nguồn
-Chạy mỗi 30 phút. Cào trong vòng 30 ngày.
+main.py (crawler-service) — Thu thập bài báo dịch bệnh Việt Nam từ nhiều nguồn
+Chạy mỗi CRAWL_INTERVAL_MIN phút (mặc định 30, cấu hình qua .env).
+
+THAY ĐỔI:
+  - Dùng get_contents_parallel() → fetch content song song (ThreadPoolExecutor)
+  - published_at được lấy từ HTML (JSON-LD / meta / time tag) hoặc URL pattern
+  - Tự động schedule bằng vòng lặp + sleep, có thể override qua CRAWL_INTERVAL_MIN
+  - Log thêm thống kê date_found / date_missing sau mỗi chu kỳ
 """
 
+import os
 import time
 from datetime import datetime
 
@@ -13,10 +20,26 @@ from spiders import (
     crawl_nongnghiep,
     crawl_nguoichannuoi,
     crawl_baovethucvat,
-    get_content,
+    crawl_vnexpress_rss,
+    crawl_suckhoe_rss,
+    crawl_nongnghiep_rss,
+    get_contents_parallel,
 )
 from ai_filter import classify_article, get_filter_status
 from database import save_raw_article, init_db
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
+
+# ========================
+# CONFIG (từ .env hoặc default)
+# ========================
+CRAWL_INTERVAL_MIN = int(os.getenv("CRAWL_INTERVAL_MIN", "30"))
+CONTENT_WORKERS    = int(os.getenv("CONTENT_WORKERS", "8"))    # thread để fetch content song song
+CRAWL_DAYS         = int(os.getenv("CRAWL_DAYS", "30"))        # lấy bài trong N ngày gần nhất
 
 
 # ========================
@@ -98,49 +121,62 @@ def is_valid_article(title: str, content: str) -> bool:
 
 
 # ========================
-# CRAWL TỪNG NGUỒN THEO KEYWORD
+# CRAWL TỪNG NGUỒN
 # ========================
 
-def crawl_all_sources(keywords: list) -> list:
-    all_items = []
+def crawl_all_links() -> list[dict]:
+    """
+    Bước 1: Thu thập danh sách link từ tất cả nguồn.
+    Chưa fetch content — chỉ lấy URL + metadata.
+    """
+    all_items: list[dict] = []
 
-    # Định nghĩa nguồn và max_pages
-    sources = [
-        ("VnExpress",           crawl_vnexpress,      5, True),   # (name, func, pages, use_all_kw)
-        ("DanTri",              crawl_dantri,          5, True),
-        ("Sức khỏe & Đời sống", crawl_suckhoedoisong,  4, False),  # chỉ kw người
-        ("Nông nghiệp VN",      crawl_nongnghiep,      4, False),  # chỉ kw động vật + cây
-        ("Người Chăn nuôi",     crawl_nguoichannuoi,   4, False),
-        ("Bảo vệ Thực vật",     crawl_baovethucvat,    3, False),
+    print("\n📡 Crawling links từ các nguồn...")
+
+    # ── RSS trước (nhanh + date chuẩn) ──
+    rss_sources = [
+        ("VnExpress RSS",      crawl_vnexpress_rss),
+        ("Sức khỏe RSS",       crawl_suckhoe_rss),
+        ("Nông nghiệp RSS",    crawl_nongnghiep_rss),
+    ]
+    for name, func in rss_sources:
+        try:
+            items = func()
+            all_items.extend(items)
+            print(f"  ✅ {name}: {len(items)} links")
+        except Exception as e:
+            print(f"  ❌ {name}: {e}")
+
+    # ── Search page ──
+    search_sources = [
+        ("VnExpress",           crawl_vnexpress,      ALL_KEYWORDS,                      5),
+        ("DanTri",              crawl_dantri,          ALL_KEYWORDS,                      5),
+        ("Sức khỏe & Đời sống", crawl_suckhoedoisong,  KEYWORDS_HUMAN,                    4),
+        ("Nông nghiệp VN",      crawl_nongnghiep,      KEYWORDS_ANIMAL + KEYWORDS_PLANT,  4),
+        ("Người Chăn nuôi",     crawl_nguoichannuoi,   KEYWORDS_ANIMAL,                   4),
+        ("Tạp chí BVTV",        crawl_baovethucvat,    KEYWORDS_PLANT,                    3),
     ]
 
-    kw_human  = KEYWORDS_HUMAN
-    kw_animal = KEYWORDS_ANIMAL
-    kw_plant  = KEYWORDS_PLANT
-
-    for src_name, func, pages, use_all in sources:
-        if use_all:
-            kw_set = ALL_KEYWORDS
-        elif "sức khỏe" in src_name.lower():
-            kw_set = kw_human
-        elif "nông nghiệp" in src_name.lower() or "chăn nuôi" in src_name.lower():
-            kw_set = kw_animal + kw_plant
-        elif "thực vật" in src_name.lower():
-            kw_set = kw_plant
-        else:
-            kw_set = ALL_KEYWORDS
-
-        print(f"\n📡 Crawling {src_name} ({len(kw_set)} keywords)...")
-
+    for src_name, func, kw_set, pages in search_sources:
+        print(f"\n  📡 {src_name} ({len(kw_set)} keywords × {pages} pages)...")
+        src_count = 0
         for keyword in kw_set:
             try:
                 items = func(keyword, max_pages=pages)
                 all_items.extend(items)
-                print(f"  ✅ '{keyword}': {len(items)} links")
+                src_count += len(items)
             except Exception as e:
-                print(f"  ❌ '{keyword}' @ {src_name}: {e}")
+                print(f"    ❌ '{keyword}': {e}")
+        print(f"  ✅ {src_name}: {src_count} links tổng")
 
     return all_items
+
+
+def deduplicate(items: list[dict]) -> list[dict]:
+    seen: dict = {}
+    for item in items:
+        seen[item["url"]] = item
+    return list(seen.values())
 
 
 # ========================
@@ -149,60 +185,75 @@ def crawl_all_sources(keywords: list) -> list:
 
 def main():
     print("\n" + "=" * 60)
-    print("🔍 Bắt đầu thu thập dữ liệu...")
+    print(f"🔍 Bắt đầu thu thập dữ liệu — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"🤖 Bộ lọc AI: {get_filter_status()}")
+    print(f"⚡ Content workers: {CONTENT_WORKERS} luồng song song")
 
-    # Crawl từ tất cả nguồn
-    all_items = crawl_all_sources(ALL_KEYWORDS)
-
-    # Loại trùng URL
-    unique: dict = {}
-    for item in all_items:
-        unique[item["url"]] = item
-    all_items = list(unique.values())
-
+    # Bước 1: Thu thập link
+    all_items = crawl_all_links()
+    all_items = deduplicate(all_items)
     print(f"\n📦 Tổng link sau lọc trùng: {len(all_items)}")
 
-    saved   = 0
-    skipped = 0
-    failed  = 0
+    if not all_items:
+        print("⚠️  Không có link nào, kết thúc chu kỳ.")
+        return
 
+    # Bước 2: Fetch content song song
+    print(f"\n⚡ Fetching content song song ({CONTENT_WORKERS} workers)...")
+    t0 = time.time()
+    all_items = get_contents_parallel(all_items, max_workers=CONTENT_WORKERS)
+    elapsed = time.time() - t0
+    print(f"   Hoàn thành trong {elapsed:.1f}s")
+
+    # Bước 3: Filter + lưu DB
+    saved        = 0
+    skipped      = 0
+    failed       = 0
+    date_found   = 0
+    date_missing = 0
+
+    total = len(all_items)
     for i, item in enumerate(all_items):
         url         = item["url"]
         source_name = item.get("source_name", "Unknown")
+        title       = item.get("title") or ""
+        content     = item.get("content") or ""
         pub_at      = item.get("published_at")
 
-        print(f"\n[{i+1}/{len(all_items)}] 🔗 {url[:80]}")
+        if pub_at:
+            date_found += 1
+        else:
+            date_missing += 1
+
+        print(f"\n[{i+1}/{total}] 🔗 {url[:80]}")
+        if pub_at:
+            print(f"   📅 {pub_at}")
 
         try:
-            title, content = get_content(url)
-
             if not title or not content:
-                print("  ⚠️ Không có nội dung → bỏ qua")
+                print("  ⚠️  Không có nội dung → bỏ qua")
                 skipped += 1
                 continue
 
             if not is_valid_article(title, content):
-                print("  ⏭️ Không phải bài dịch bệnh VN → bỏ qua")
+                print("  ⏭️  Không phải bài dịch bệnh VN → bỏ qua")
                 skipped += 1
                 continue
 
             ai_result = classify_article(title, content)
             if not ai_result["is_relevant"]:
                 print(
-                    "  🤖 AI loại bài: "
-                    f"{ai_result.get('reason', 'không phù hợp')} "
-                    f"(confidence={ai_result.get('confidence', 0):.2f})"
+                    f"  🤖 AI loại: {ai_result.get('reason', 'không phù hợp')} "
+                    f"(conf={ai_result.get('confidence', 0):.2f})"
                 )
                 skipped += 1
                 continue
 
             print(
-                "  🤖 AI giữ bài: "
-                f"{ai_result.get('method', 'unknown')} | "
-                f"{ai_result.get('category', 'unknown')} | "
-                f"{ai_result.get('primary_topic', '')} "
-                f"(confidence={ai_result.get('confidence', 0):.2f})"
+                f"  🤖 AI giữ: {ai_result.get('method')} | "
+                f"{ai_result.get('category')} | "
+                f"{ai_result.get('primary_topic')} "
+                f"(conf={ai_result.get('confidence', 0):.2f})"
             )
 
             ok = save_raw_article(
@@ -222,30 +273,39 @@ def main():
             print(f"  ❌ Lỗi xử lý: {e}")
             failed += 1
 
-        # Tránh bị block
-        time.sleep(0.5)
-
     print("\n" + "=" * 60)
     print(f"✅ Lưu thành công : {saved}")
-    print(f"⏭️ Bỏ qua         : {skipped}")
+    print(f"⏭️  Bỏ qua         : {skipped}")
     print(f"❌ Thất bại        : {failed}")
+    print(f"📅 Có ngày đăng   : {date_found} / {total} ({100*date_found//total if total else 0}%)")
+    print(f"📅 Thiếu ngày     : {date_missing}")
     print("=" * 60)
 
 
 # ========================
-# RUN SERVICE (loop mỗi 30 phút)
+# RUN SERVICE — tự động lặp theo schedule
 # ========================
 
 if __name__ == "__main__":
     print("🚀 Crawler Service khởi động...")
+    print(f"⏱️  Chu kỳ cào: mỗi {CRAWL_INTERVAL_MIN} phút")
+    print(f"⚡ Số worker song song: {CONTENT_WORKERS}")
     init_db()
 
     while True:
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        start = time.time()
+        now   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print(f"\n🚀 [{now}] Bắt đầu chu kỳ cào dữ liệu...")
 
-        main()
+        try:
+            main()
+        except Exception as e:
+            print(f"❌ Lỗi nghiêm trọng trong chu kỳ: {e}")
 
-        wait_min = 30
-        print(f"\n⏱️  Nghỉ {wait_min} phút...\n")
+        elapsed_min = (time.time() - start) / 60
+        wait_min    = max(1, CRAWL_INTERVAL_MIN - elapsed_min)
+
+        next_run = datetime.now().replace(microsecond=0)
+        print(f"\n⏱️  Chu kỳ hoàn thành trong {elapsed_min:.1f} phút.")
+        print(f"⏳ Nghỉ {wait_min:.1f} phút → chu kỳ tiếp theo lúc ~{next_run}\n")
         time.sleep(wait_min * 60)

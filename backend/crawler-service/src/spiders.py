@@ -1,17 +1,15 @@
 """
 spiders.py - Thu thập bài báo dịch bệnh từ nhiều nguồn tại Việt Nam
-Nguồn hiện tại (10 nguồn):
-  Người  : VnExpress, DanTri, Sức khỏe & Đời sống, Báo Sức khỏe (bacsituvan.vn),
-            Báo Thanh Niên, Báo Tuổi Trẻ
-  Động vật: Báo Nông nghiệp VN, Người Chăn nuôi, Cục Thú y (thuY.gov.vn)
-  Cây trồng: Cục BVTV (bvtv.gov.vn), Tạp chí BVTV
+Nguồn: VnExpress, DanTri, Sức khỏe & Đời sống, Nông nghiệp VN,
+       Người Chăn nuôi, Tạp chí BVTV, Cục Thú y, Cục BVTV
 
-THAY ĐỔI SO VỚI PHIÊN BẢN CŨ:
-  - Cập nhật CSS selector cho DanTri, NongNghiep, NguoiChanNuoi
-  - Thêm 4 nguồn mới: Thanh Niên, Tuổi Trẻ, Cục Thú y, Cục BVTV
-  - Thêm crawl_thuy() và crawl_cucbvtv() dùng RSS/sitemap để tránh bị block
-  - Cải thiện fallback_get_content: thêm selector chuyên biệt cho từng domain
-  - is_valid_url: bổ sung thêm pattern lọc link rác
+THAY ĐỔI:
+  - Fix published_at: parse date từ JSON-LD, meta tags, og:tags, time tags
+  - Tăng tốc get_content: ThreadPoolExecutor, timeout giảm xuống 10s
+  - VnExpress: parse date từ JSON-LD (chuẩn nhất)
+  - DanTri: fix logic stop/skip, parse date từ time[datetime]
+  - Tất cả spider: fallback date từ URL pattern (YYYY/MM/DD)
+  - RSS feeds: parse date chuẩn RFC-2822 và ISO-8601
 """
 
 import re
@@ -20,7 +18,8 @@ import requests
 from bs4 import BeautifulSoup
 from newspaper import Article
 from datetime import datetime, timedelta
-from urllib.parse import quote_plus, urljoin
+from urllib.parse import quote_plus
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 # ========================
@@ -36,6 +35,10 @@ HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 }
 
+# Timeout ngắn hơn để tăng tốc
+REQUEST_TIMEOUT = 10
+CONTENT_TIMEOUT = 12
+
 
 # ========================
 # DATE RANGE
@@ -47,9 +50,145 @@ def get_date_range(days: int = 30):
 
 
 # ========================
+# DATE PARSING HELPERS
+# ========================
+
+def _parse_iso(s: str) -> str | None:
+    """Parse ISO-8601 / RFC-3339: 2025-05-10T14:30:00+07:00"""
+    if not s:
+        return None
+    try:
+        s = s.strip().replace("Z", "+00:00")
+        # Remove timezone offset để parse
+        s_clean = re.sub(r"[+-]\d{2}:\d{2}$", "", s)
+        for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(s_clean, fmt).strftime("%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                continue
+    except Exception:
+        pass
+    return None
+
+
+def _parse_rfc2822(s: str) -> str | None:
+    """Parse RFC-2822: Wed, 10 May 2025 14:30:00 +0700"""
+    if not s:
+        return None
+    try:
+        from email.utils import parsedate_to_datetime
+        return parsedate_to_datetime(s.strip()).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return None
+
+
+def _parse_vn_date(s: str) -> str | None:
+    """Parse ngày tiếng Việt: 10/05/2025, 10-05-2025, ngày 10 tháng 5 năm 2025"""
+    if not s:
+        return None
+    # dd/mm/yyyy hoặc dd-mm-yyyy
+    m = re.search(r"(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})", s)
+    if m:
+        try:
+            return datetime(int(m.group(3)), int(m.group(2)), int(m.group(1))).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+    # ngày D tháng M năm YYYY
+    m = re.search(r"ngày\s+(\d{1,2})\s+tháng\s+(\d{1,2})\s+năm\s+(\d{4})", s, re.IGNORECASE)
+    if m:
+        try:
+            return datetime(int(m.group(3)), int(m.group(2)), int(m.group(1))).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+    return None
+
+
+def _parse_date_from_url(url: str) -> str | None:
+    """Trích ngày từ URL pattern: /2025/05/10/ hoặc -20250510.htm"""
+    # /YYYY/MM/DD/
+    m = re.search(r"/(\d{4})/(\d{2})/(\d{2})/", url)
+    if m:
+        try:
+            return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3))).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+    # -YYYYMMDD. hoặc _YYYYMMDD
+    m = re.search(r"[-_](\d{4})(\d{2})(\d{2})[.\-_]", url)
+    if m:
+        try:
+            return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3))).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+    # /YYYY-MM-DD
+    m = re.search(r"/(\d{4})-(\d{2})-(\d{2})", url)
+    if m:
+        try:
+            return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3))).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+    return None
+
+
+def extract_date_from_html(html: str, url: str = "") -> str | None:
+    """
+    Thử lần lượt các nguồn date trong HTML:
+    1. JSON-LD datePublished (chuẩn nhất - VnExpress, báo lớn dùng)
+    2. <meta property="article:published_time">
+    3. <meta name="pubdate"> / <meta name="date">
+    4. <time datetime="...">
+    5. URL pattern
+    """
+    if not html:
+        return _parse_date_from_url(url)
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    # 1. JSON-LD
+    for script in soup.find_all("script", type="application/ld+json"):
+        try:
+            import json
+            data = json.loads(script.string or "")
+            # Có thể là list hoặc dict
+            if isinstance(data, list):
+                data = data[0] if data else {}
+            pub = data.get("datePublished") or data.get("dateCreated") or ""
+            result = _parse_iso(pub)
+            if result:
+                return result
+        except Exception:
+            pass
+
+    # 2. meta og / article
+    for attr_name, attr_val in [
+        ("property", "article:published_time"),
+        ("property", "og:updated_time"),
+        ("name",     "pubdate"),
+        ("name",     "date"),
+        ("name",     "DC.date"),
+        ("itemprop", "datePublished"),
+    ]:
+        tag = soup.find("meta", attrs={attr_name: attr_val})
+        if tag:
+            content = tag.get("content", "")
+            result = _parse_iso(content) or _parse_vn_date(content)
+            if result:
+                return result
+
+    # 3. <time datetime="...">
+    time_tag = soup.find("time", attrs={"datetime": True})
+    if time_tag:
+        result = _parse_iso(time_tag["datetime"])
+        if result:
+            return result
+
+    # 4. URL pattern
+    return _parse_date_from_url(url)
+
+
+# ========================
 # SAFE REQUEST (retry + backoff)
 # ========================
-def fetch_url(url: str, retries: int = 3, timeout: int = 15) -> str | None:
+def fetch_url(url: str, retries: int = 2, timeout: int = REQUEST_TIMEOUT) -> str | None:
     for i in range(retries):
         try:
             res = requests.get(url, headers=HEADERS, timeout=timeout)
@@ -57,8 +196,8 @@ def fetch_url(url: str, retries: int = 3, timeout: int = 15) -> str | None:
             res.encoding = res.apparent_encoding or "utf-8"
             return res.text
         except Exception as e:
-            print(f"  ⚠️  Retry {i+1}/{retries}: {url[:60]} — {e}")
-            time.sleep(2 ** i)          # exponential backoff: 1s, 2s, 4s
+            if i < retries - 1:
+                time.sleep(1.5 ** i)
     return None
 
 
@@ -80,47 +219,30 @@ def is_valid_url(url: str) -> bool:
 
 
 # ========================
-# RSS HELPER (dùng cho các nguồn có RSS)
+# RSS HELPER
 # ========================
 def _crawl_rss(rss_url: str, source_name: str, domain_filter: str = "") -> list[dict]:
-    """
-    Lấy bài báo từ RSS feed. Trả về list dict {url, source_name, published_at}.
-    """
     results = []
     html = fetch_url(rss_url)
     if not html:
         return results
 
     soup = BeautifulSoup(html, "xml")
-    items = soup.find_all("item")
-
-    if not items:
-        # Fallback: Atom feed
-        items = soup.find_all("entry")
+    items = soup.find_all("item") or soup.find_all("entry")
 
     for item in items:
         link_tag = item.find("link")
+        href = ""
         if link_tag:
             href = link_tag.get_text(strip=True) or link_tag.get("href", "")
-        else:
-            href = ""
-
-        if not href:
-            continue
-        if domain_filter and domain_filter not in href:
-            continue
-        if not is_valid_url(href):
+        if not href or (domain_filter and domain_filter not in href) or not is_valid_url(href):
             continue
 
         pub_date = None
         pub_tag = item.find("pubDate") or item.find("published") or item.find("updated")
         if pub_tag:
-            try:
-                from email.utils import parsedate_to_datetime
-                pub_date = parsedate_to_datetime(pub_tag.get_text(strip=True))\
-                               .strftime("%Y-%m-%d %H:%M:%S")
-            except Exception:
-                pass
+            raw = pub_tag.get_text(strip=True)
+            pub_date = _parse_rfc2822(raw) or _parse_iso(raw)
 
         results.append({
             "url": href.strip(),
@@ -133,7 +255,7 @@ def _crawl_rss(rss_url: str, source_name: str, domain_filter: str = "") -> list[
 
 
 # ============================================================
-# 1. VNEXPRESS  (tìm kiếm có phân trang)
+# 1. VNEXPRESS — parse date từ JSON-LD
 # ============================================================
 def crawl_vnexpress(keyword: str, max_pages: int = 5) -> list[dict]:
     from_date, to_date = get_date_range()
@@ -152,41 +274,85 @@ def crawl_vnexpress(keyword: str, max_pages: int = 5) -> list[dict]:
             break
 
         soup  = BeautifulSoup(html, "html.parser")
-        found = soup.select(".item-news h3.title-news a")
 
-        if not found:
-            print(f"  [VnExpress] Hết trang {page}")
-            break
+        # VnExpress search: mỗi item có data-publish-time (unix timestamp)
+        items = soup.select(".item-news")
+        if not items:
+            items = soup.select("article.item-news-main, article.item-news")
 
-        for a in found:
-            href = a.get("href", "")
-            if is_valid_url(href):
-                results.append({
-                    "url": href.strip(),
-                    "source_name": "VnExpress",
-                    "published_at": None,
-                })
+        if not items:
+            # Fallback: chỉ lấy link
+            found = soup.select("h3.title-news a, h2.title-news a")
+            if not found:
+                print(f"  [VnExpress] Hết trang {page}")
+                break
+            for a in found:
+                href = a.get("href", "")
+                if is_valid_url(href):
+                    results.append({
+                        "url": href.strip(),
+                        "source_name": "VnExpress",
+                        "published_at": _parse_date_from_url(href),
+                    })
+            print(f"  [VnExpress] Trang {page}: {len(found)} links (fallback)")
+            time.sleep(0.5)
+            continue
 
-        print(f"  [VnExpress] Trang {page}: {len(found)} links")
-        time.sleep(0.8)
+        count = 0
+        for item in items:
+            a_tag = item.select_one("h3.title-news a, h2.title-news a, .title-news a")
+            if not a_tag:
+                continue
+            href = a_tag.get("href", "")
+            if not is_valid_url(href):
+                continue
+
+            # VnExpress có data-publish-time="1715234400" (unix)
+            pub_date = None
+            ts = item.get("data-publish-time") or item.select_one("[data-publish-time]")
+            if isinstance(ts, str) and ts.isdigit():
+                try:
+                    pub_date = datetime.fromtimestamp(int(ts)).strftime("%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    pass
+            elif hasattr(ts, "get"):
+                raw_ts = ts.get("data-publish-time", "")
+                if raw_ts and raw_ts.isdigit():
+                    try:
+                        pub_date = datetime.fromtimestamp(int(raw_ts)).strftime("%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        pass
+
+            # Fallback: parse từ URL (VnExpress URL có dạng /chu-de/tieu-de-NNNNNNN.html
+            # không có date, nhưng thử anyway)
+            if not pub_date:
+                pub_date = _parse_date_from_url(href)
+
+            results.append({
+                "url": href.strip(),
+                "source_name": "VnExpress",
+                "published_at": pub_date,
+            })
+            count += 1
+
+        print(f"  [VnExpress] Trang {page}: {count} links")
+        time.sleep(0.5)
 
     return results
 
 
 # ============================================================
-# 2. DANTRI  (cập nhật selector 2024-2025)
+# 2. DANTRI — fix date parsing + stop logic
 # ============================================================
 def crawl_dantri(keyword: str, max_pages: int = 5) -> list[dict]:
     from_date, _ = get_date_range()
     results = []
     keyword_encoded = quote_plus(keyword)
 
-    # DanTri đã đổi URL tìm kiếm
     for page in range(1, max_pages + 1):
         url = f"https://dantri.com.vn/tim-kiem.htm?keywords={keyword_encoded}&page={page}"
         html = fetch_url(url)
         if not html:
-            # Thử URL cũ nếu URL mới thất bại
             url = f"https://dantri.com.vn/tim-kiem.htm?q={keyword_encoded}&page={page}"
             html = fetch_url(url)
         if not html:
@@ -194,7 +360,6 @@ def crawl_dantri(keyword: str, max_pages: int = 5) -> list[dict]:
 
         soup = BeautifulSoup(html, "html.parser")
 
-        # Thử nhiều selector khác nhau
         articles = (
             soup.select("article.article-item")
             or soup.select("div.article-item")
@@ -203,38 +368,43 @@ def crawl_dantri(keyword: str, max_pages: int = 5) -> list[dict]:
         )
 
         if not articles:
-            # Fallback: lấy tất cả link bài báo
+            # Fallback regex
+            found_count = 0
             for a in soup.find_all("a", href=True):
                 href = a["href"]
                 if href.startswith("/"):
                     href = "https://dantri.com.vn" + href
-                # DanTri article URL dạng /chu-de/title-YYYYMMDD.htm
                 if re.search(r"dantri\.com\.vn/[a-z\-]+/[a-z0-9\-]+-\d{8,}\.htm", href):
                     if is_valid_url(href):
                         results.append({
                             "url": href.strip(),
                             "source_name": "DanTri",
-                            "published_at": None,
+                            "published_at": _parse_date_from_url(href),
                         })
-            print(f"  [DanTri] Trang {page}: fallback links")
-            time.sleep(0.8)
+                        found_count += 1
+            print(f"  [DanTri] Trang {page}: {found_count} links (fallback)")
+            time.sleep(0.5)
             continue
 
-        stop = False
+        old_article_count = 0
         for art in articles:
             published_at = None
-            time_tag = art.select_one("time")
-            if time_tag and time_tag.get("datetime"):
-                try:
-                    pub_date = datetime.fromisoformat(
-                        time_tag["datetime"].replace("Z", "+00:00")
-                    ).replace(tzinfo=None)
-                    if pub_date < from_date:
-                        stop = True
-                        break
-                    published_at = pub_date.strftime("%Y-%m-%d %H:%M:%S")
-                except Exception:
-                    pass
+
+            # Parse date từ <time datetime="...">
+            time_tag = art.select_one("time[datetime]")
+            if time_tag:
+                raw_dt = time_tag.get("datetime", "")
+                parsed = _parse_iso(raw_dt)
+                if parsed:
+                    published_at = parsed
+                    # Bài quá cũ → skip bài này nhưng KHÔNG dừng toàn trang
+                    try:
+                        pub_obj = datetime.strptime(parsed[:10], "%Y-%m-%d")
+                        if pub_obj < from_date:
+                            old_article_count += 1
+                            continue
+                    except Exception:
+                        pass
 
             a_tag = (
                 art.select_one("h3.article-title a")
@@ -248,22 +418,27 @@ def crawl_dantri(keyword: str, max_pages: int = 5) -> list[dict]:
                 if href.startswith("/"):
                     href = "https://dantri.com.vn" + href
                 if is_valid_url(href):
+                    # Fallback date từ URL nếu chưa có
+                    if not published_at:
+                        published_at = _parse_date_from_url(href)
                     results.append({
                         "url": href.strip(),
                         "source_name": "DanTri",
                         "published_at": published_at,
                     })
 
-        print(f"  [DanTri] Trang {page}: {len(articles)} bài")
-        time.sleep(0.8)
-        if stop:
+        print(f"  [DanTri] Trang {page}: {len(articles)} bài ({old_article_count} quá cũ)")
+        time.sleep(0.5)
+        # Chỉ dừng nếu TOÀN BỘ trang đều là bài cũ
+        if old_article_count == len(articles) and old_article_count > 0:
+            print(f"  [DanTri] Toàn trang đều cũ, dừng.")
             break
 
     return results
 
 
 # ============================================================
-# 3. SỨC KHỎE & ĐỜI SỐNG  (suckhoedoisong.vn)
+# 3. SỨC KHỎE & ĐỜI SỐNG
 # ============================================================
 def crawl_suckhoedoisong(keyword: str, max_pages: int = 5) -> list[dict]:
     results = []
@@ -294,7 +469,6 @@ def crawl_suckhoedoisong(keyword: str, max_pages: int = 5) -> list[dict]:
                 if href.startswith("/"):
                     href = "https://suckhoedoisong.vn" + href
                 if "suckhoedoisong.vn" in href and is_valid_url(href):
-                    # Lọc chỉ giữ URL bài báo (có dạng /tieu-de-nNNNNNNN.htm)
                     if re.search(r"-n\d{5,}\.htm", href):
                         hrefs.append(href)
 
@@ -306,139 +480,17 @@ def crawl_suckhoedoisong(keyword: str, max_pages: int = 5) -> list[dict]:
             results.append({
                 "url": href.strip(),
                 "source_name": "Sức khỏe & Đời sống",
-                "published_at": None,
+                "published_at": _parse_date_from_url(href),
             })
 
         print(f"  [SKDS] Trang {page}: {len(hrefs)} links")
-        time.sleep(1.0)
+        time.sleep(0.6)
 
     return results
 
 
 # ============================================================
-# 4. BÁO THANH NIÊN  (thanhnien.vn)  — nguồn MỚI
-# ============================================================
-def crawl_thanhnien(keyword: str, max_pages: int = 5) -> list[dict]:
-    """
-    Thanh Niên có search engine riêng: /tim-kiem/?q=...&page=...
-    Bài báo URL dạng: https://thanhnien.vn/chu-de/tieu-de-185XXXXXXXX.htm
-    """
-    results = []
-    keyword_encoded = quote_plus(keyword)
-
-    for page in range(1, max_pages + 1):
-        url = f"https://thanhnien.vn/tim-kiem/?q={keyword_encoded}&page={page}"
-        html = fetch_url(url)
-        if not html:
-            break
-
-        soup = BeautifulSoup(html, "html.parser")
-
-        # Thử selector chính
-        links = (
-            soup.select(".box-category-item h3 a")
-            or soup.select(".story__heading a")
-            or soup.select(".item--title a")
-            or soup.select("article h3 a")
-            or soup.select("article h2 a")
-        )
-
-        hrefs = []
-        for a in links:
-            href = a.get("href", "")
-            if href.startswith("/"):
-                href = "https://thanhnien.vn" + href
-            if is_valid_url(href) and "thanhnien.vn" in href:
-                hrefs.append(href)
-
-        if not hrefs:
-            # Fallback: regex URL dạng Thanh Niên
-            for a in soup.find_all("a", href=True):
-                href = a["href"]
-                if href.startswith("/"):
-                    href = "https://thanhnien.vn" + href
-                if re.search(r"thanhnien\.vn/[a-z0-9\-]+/[a-z0-9\-]+-185\d+\.htm", href):
-                    hrefs.append(href)
-
-        if not hrefs:
-            print(f"  [ThanhNien] Hết trang {page}")
-            break
-
-        for href in set(hrefs):
-            results.append({
-                "url": href.strip(),
-                "source_name": "Thanh Niên",
-                "published_at": None,
-            })
-
-        print(f"  [ThanhNien] Trang {page}: {len(hrefs)} links")
-        time.sleep(0.9)
-
-    return results
-
-
-# ============================================================
-# 5. BÁO TUỔI TRẺ  (tuoitre.vn)  — nguồn MỚI
-# ============================================================
-def crawl_tuoitre(keyword: str, max_pages: int = 5) -> list[dict]:
-    """
-    Tuổi Trẻ dùng endpoint: /tim-kiem?q=...&p=...
-    URL bài dạng: https://tuoitre.vn/tieu-de-XXXXXXXXXX.htm
-    """
-    results = []
-    keyword_encoded = quote_plus(keyword)
-
-    for page in range(1, max_pages + 1):
-        url = f"https://tuoitre.vn/tim-kiem?q={keyword_encoded}&p={page}"
-        html = fetch_url(url)
-        if not html:
-            break
-
-        soup = BeautifulSoup(html, "html.parser")
-
-        links = (
-            soup.select(".news-item h3 a")
-            or soup.select(".search-result h3 a")
-            or soup.select("li.search-result a")
-            or soup.select("article h3 a")
-            or soup.select(".title-news a")
-        )
-
-        hrefs = []
-        for a in links:
-            href = a.get("href", "")
-            if href.startswith("/"):
-                href = "https://tuoitre.vn" + href
-            if is_valid_url(href) and "tuoitre.vn" in href:
-                hrefs.append(href)
-
-        if not hrefs:
-            for a in soup.find_all("a", href=True):
-                href = a["href"]
-                if href.startswith("/"):
-                    href = "https://tuoitre.vn" + href
-                if re.search(r"tuoitre\.vn/[a-z0-9\-]+-\d{10,}\.htm", href):
-                    hrefs.append(href)
-
-        if not hrefs:
-            print(f"  [TuoiTre] Hết trang {page}")
-            break
-
-        for href in set(hrefs):
-            results.append({
-                "url": href.strip(),
-                "source_name": "Tuổi Trẻ",
-                "published_at": None,
-            })
-
-        print(f"  [TuoiTre] Trang {page}: {len(hrefs)} links")
-        time.sleep(0.9)
-
-    return results
-
-
-# ============================================================
-# 6. BÁO NÔNG NGHIỆP VIỆT NAM  (nongnghiep.vn)  — cập nhật selector
+# 4. NÔNG NGHIỆP VIỆT NAM
 # ============================================================
 def crawl_nongnghiep(keyword: str, max_pages: int = 5) -> list[dict]:
     results = []
@@ -448,7 +500,6 @@ def crawl_nongnghiep(keyword: str, max_pages: int = 5) -> list[dict]:
         url = f"https://nongnghiep.vn/tim-kiem/?keyword={keyword_encoded}&page={page}"
         html = fetch_url(url)
         if not html:
-            # Thử URL format khác
             url = f"https://nongnghiep.vn/tim-kiem/?s={keyword_encoded}&page={page}"
             html = fetch_url(url)
         if not html:
@@ -479,7 +530,6 @@ def crawl_nongnghiep(keyword: str, max_pages: int = 5) -> list[dict]:
                 href = a["href"]
                 if href.startswith("/"):
                     href = "https://nongnghiep.vn" + href
-                # URL bài dạng /tieu-de-d123456.html hoặc /tieu-de.html
                 if re.search(r"nongnghiep\.vn/[a-z0-9\-]+(?:-d\d+)?\.html?", href):
                     if is_valid_url(href):
                         hrefs.append(href)
@@ -492,17 +542,17 @@ def crawl_nongnghiep(keyword: str, max_pages: int = 5) -> list[dict]:
             results.append({
                 "url": href.strip(),
                 "source_name": "Nông nghiệp Việt Nam",
-                "published_at": None,
+                "published_at": _parse_date_from_url(href),
             })
 
         print(f"  [NongNghiep] Trang {page}: {len(hrefs)} links")
-        time.sleep(1.0)
+        time.sleep(0.6)
 
     return results
 
 
 # ============================================================
-# 7. NGƯỜI CHĂN NUÔI  (nguoichannuoi.vn)  — cập nhật selector
+# 5. NGƯỜI CHĂN NUÔI
 # ============================================================
 def crawl_nguoichannuoi(keyword: str, max_pages: int = 4) -> list[dict]:
     results = []
@@ -526,7 +576,7 @@ def crawl_nguoichannuoi(keyword: str, max_pages: int = 4) -> list[dict]:
         )
 
         if not links:
-            # Fallback regex
+            count = 0
             for a in soup.find_all("a", href=True):
                 href = a["href"]
                 if re.search(r"nguoichannuoi\.vn/\d{4}/\d{2}/", href) or \
@@ -535,10 +585,11 @@ def crawl_nguoichannuoi(keyword: str, max_pages: int = 4) -> list[dict]:
                         results.append({
                             "url": href.strip(),
                             "source_name": "Người Chăn nuôi",
-                            "published_at": None,
+                            "published_at": _parse_date_from_url(href),
                         })
-            print(f"  [NguoiChanNuoi] Trang {page}: fallback")
-            time.sleep(1.0)
+                        count += 1
+            print(f"  [NguoiChanNuoi] Trang {page}: {count} links (fallback)")
+            time.sleep(0.7)
             continue
 
         count = 0
@@ -548,7 +599,7 @@ def crawl_nguoichannuoi(keyword: str, max_pages: int = 4) -> list[dict]:
                 results.append({
                     "url": href.strip(),
                     "source_name": "Người Chăn nuôi",
-                    "published_at": None,
+                    "published_at": _parse_date_from_url(href),
                 })
                 count += 1
 
@@ -557,95 +608,58 @@ def crawl_nguoichannuoi(keyword: str, max_pages: int = 4) -> list[dict]:
             break
 
         print(f"  [NguoiChanNuoi] Trang {page}: {count} links")
-        time.sleep(1.0)
+        time.sleep(0.7)
 
     return results
 
 
 # ============================================================
-# 8. CỤC THÚ Y  (thuy.gov.vn)  — nguồn MỚI (RSS + scrape)
+# 6. CỤC THÚ Y
 # ============================================================
 def crawl_thuy(keyword: str = "", max_pages: int = 3) -> list[dict]:
-    """
-    Cục Thú y: nguồn chính thức về dịch bệnh động vật.
-    Dùng RSS feed + scrape trang tin tức trực tiếp.
-    keyword không dùng vì site không có search — lấy toàn bộ tin mới.
-    """
     results = []
     BASE = "https://www.thuy.gov.vn"
 
-    # Thử RSS
-    rss_urls = [
-        f"{BASE}/feed/",
-        f"{BASE}/rss.xml",
-        f"{BASE}/tin-tuc/feed/",
-    ]
+    rss_urls = [f"{BASE}/feed/", f"{BASE}/rss.xml", f"{BASE}/tin-tuc/feed/"]
     for rss_url in rss_urls:
         rss_items = _crawl_rss(rss_url, "Cục Thú y", "thuy.gov.vn")
         if rss_items:
             results.extend(rss_items)
             break
 
-    # Nếu RSS không có, scrape trang tin tức
     if not results:
-        news_sections = [
-            "/tin-tuc-su-kien",
-            "/dich-benh",
-            "/kiem-dich-dong-vat",
-        ]
-        for section in news_sections:
+        for section in ["/tin-tuc-su-kien", "/dich-benh"]:
             for page in range(1, max_pages + 1):
                 url = f"{BASE}{section}?page={page}" if page > 1 else f"{BASE}{section}"
                 html = fetch_url(url)
                 if not html:
                     break
-
                 soup = BeautifulSoup(html, "html.parser")
-                links = (
-                    soup.select(".views-row a")
-                    or soup.select("article h3 a")
-                    or soup.select(".news-title a")
-                    or soup.select(".field-content a")
-                )
-
+                links = soup.select(".views-row a") or soup.select("article h3 a") or soup.select(".field-content a")
                 found = 0
                 for a in links:
                     href = a.get("href", "")
                     if href.startswith("/"):
                         href = BASE + href
                     if is_valid_url(href) and "thuy.gov.vn" in href:
-                        results.append({
-                            "url": href.strip(),
-                            "source_name": "Cục Thú y",
-                            "published_at": None,
-                        })
+                        results.append({"url": href.strip(), "source_name": "Cục Thú y", "published_at": _parse_date_from_url(href)})
                         found += 1
-
                 if not found:
                     break
                 print(f"  [CucThuy] {section} trang {page}: {found} links")
-                time.sleep(1.0)
+                time.sleep(0.7)
 
     return results
 
 
 # ============================================================
-# 9. CỤC BẢO VỆ THỰC VẬT  (bvtv.gov.vn)  — nguồn MỚI
+# 7. CỤC BẢO VỆ THỰC VẬT
 # ============================================================
 def crawl_cucbvtv(keyword: str = "", max_pages: int = 3) -> list[dict]:
-    """
-    Cục BVTV: nguồn chính thức về sâu bệnh cây trồng.
-    Dùng RSS + scrape trang tin tức/cảnh báo dịch hại.
-    """
     results = []
     BASE = "https://bvtv.gov.vn"
 
-    # Thử RSS
-    rss_urls = [
-        f"{BASE}/feed/",
-        f"{BASE}/rss.xml",
-        f"{BASE}/tin-tuc/feed/",
-    ]
+    rss_urls = [f"{BASE}/feed/", f"{BASE}/rss.xml", f"{BASE}/tin-tuc/feed/"]
     for rss_url in rss_urls:
         rss_items = _crawl_rss(rss_url, "Cục BVTV", "bvtv.gov.vn")
         if rss_items:
@@ -653,49 +667,32 @@ def crawl_cucbvtv(keyword: str = "", max_pages: int = 3) -> list[dict]:
             break
 
     if not results:
-        news_sections = [
-            "/tin-tuc-su-kien",
-            "/canh-bao-dich-hai",
-            "/kiem-dich-thuc-vat",
-        ]
-        for section in news_sections:
+        for section in ["/tin-tuc-su-kien", "/canh-bao-dich-hai"]:
             for page in range(1, max_pages + 1):
                 url = f"{BASE}{section}?page={page}" if page > 1 else f"{BASE}{section}"
                 html = fetch_url(url)
                 if not html:
                     break
-
                 soup = BeautifulSoup(html, "html.parser")
-                links = (
-                    soup.select(".views-row a")
-                    or soup.select("article h3 a")
-                    or soup.select(".news-title a")
-                    or soup.select("h3.title a")
-                )
-
+                links = soup.select(".views-row a") or soup.select("article h3 a") or soup.select("h3.title a")
                 found = 0
                 for a in links:
                     href = a.get("href", "")
                     if href.startswith("/"):
                         href = BASE + href
                     if is_valid_url(href) and "bvtv.gov.vn" in href:
-                        results.append({
-                            "url": href.strip(),
-                            "source_name": "Cục BVTV",
-                            "published_at": None,
-                        })
+                        results.append({"url": href.strip(), "source_name": "Cục BVTV", "published_at": _parse_date_from_url(href)})
                         found += 1
-
                 if not found:
                     break
                 print(f"  [CucBVTV] {section} trang {page}: {found} links")
-                time.sleep(1.0)
+                time.sleep(0.7)
 
     return results
 
 
 # ============================================================
-# 10. TẠP CHÍ BẢO VỆ THỰC VẬT  (tapchibaovethucvat.vn)  — cập nhật
+# 8. TẠP CHÍ BẢO VỆ THỰC VẬT
 # ============================================================
 def crawl_baovethucvat(keyword: str, max_pages: int = 3) -> list[dict]:
     results = []
@@ -726,7 +723,7 @@ def crawl_baovethucvat(keyword: str, max_pages: int = 3) -> list[dict]:
                 results.append({
                     "url": href.strip(),
                     "source_name": "Tạp chí BVTV",
-                    "published_at": None,
+                    "published_at": _parse_date_from_url(href),
                 })
                 count += 1
 
@@ -735,67 +732,52 @@ def crawl_baovethucvat(keyword: str, max_pages: int = 3) -> list[dict]:
             break
 
         print(f"  [BVTV] Trang {page}: {count} links")
-        time.sleep(1.0)
+        time.sleep(0.7)
 
     return results
 
 
 # ============================================================
-# 11. BÁO SỨC KHOẺ  (suckhoedoisong.vn RSS + bacsituvan.net)  — nguồn MỚI
+# RSS FEEDS (nhanh, date chuẩn)
 # ============================================================
 def crawl_suckhoe_rss() -> list[dict]:
-    """
-    Lấy tin từ RSS của Sức khỏe & Đời sống (nhanh và ổn định hơn scrape).
-    """
     rss_feeds = [
-        ("https://suckhoedoisong.vn/rss/phong-chong-dich-benh.rss",   "Sức khỏe & Đời sống"),
-        ("https://suckhoedoisong.vn/rss/suc-khoe.rss",                "Sức khỏe & Đời sống"),
-        ("https://suckhoedoisong.vn/rss/y-te.rss",                    "Sức khỏe & Đời sống"),
+        ("https://suckhoedoisong.vn/rss/phong-chong-dich-benh.rss", "Sức khỏe & Đời sống"),
+        ("https://suckhoedoisong.vn/rss/suc-khoe.rss",              "Sức khỏe & Đời sống"),
     ]
     results = []
     for rss_url, name in rss_feeds:
-        items = _crawl_rss(rss_url, name, "suckhoedoisong.vn")
-        results.extend(items)
-        time.sleep(0.5)
+        results.extend(_crawl_rss(rss_url, name, "suckhoedoisong.vn"))
     return results
 
 
 def crawl_vnexpress_rss() -> list[dict]:
-    """
-    VnExpress RSS cho các chuyên mục sức khỏe — tốc độ nhanh, không bị rate limit.
-    """
     rss_feeds = [
         ("https://vnexpress.net/rss/suc-khoe.rss",         "VnExpress"),
         ("https://vnexpress.net/rss/suc-khoe/tin-tuc.rss", "VnExpress"),
     ]
     results = []
     for rss_url, name in rss_feeds:
-        items = _crawl_rss(rss_url, name, "vnexpress.net")
-        results.extend(items)
-        time.sleep(0.5)
+        results.extend(_crawl_rss(rss_url, name, "vnexpress.net"))
     return results
 
 
 def crawl_nongnghiep_rss() -> list[dict]:
-    """Nông nghiệp VN RSS cho chuyên mục chăn nuôi / BVTV."""
     rss_feeds = [
-        ("https://nongnghiep.vn/chan-nuoi-thu-y.rss",      "Nông nghiệp Việt Nam"),
-        ("https://nongnghiep.vn/bao-ve-thuc-vat.rss",      "Nông nghiệp Việt Nam"),
-        ("https://nongnghiep.vn/thi-truong.rss",           "Nông nghiệp Việt Nam"),
+        ("https://nongnghiep.vn/chan-nuoi-thu-y.rss", "Nông nghiệp Việt Nam"),
+        ("https://nongnghiep.vn/bao-ve-thuc-vat.rss", "Nông nghiệp Việt Nam"),
     ]
     results = []
     for rss_url, name in rss_feeds:
-        items = _crawl_rss(rss_url, name, "nongnghiep.vn")
-        results.extend(items)
-        time.sleep(0.5)
+        results.extend(_crawl_rss(rss_url, name, "nongnghiep.vn"))
     return results
 
 
 # ============================================================
-# GET ARTICLE CONTENT  (newspaper3k + BeautifulSoup fallback)
+# GET ARTICLE CONTENT — newspaper3k + BeautifulSoup fallback
+# Tăng tốc: giảm timeout, dùng ThreadPoolExecutor ở main
 # ============================================================
 
-# CSS selector chuyên biệt theo domain
 _DOMAIN_CONTENT_SELECTORS: dict[str, str] = {
     "vnexpress.net":          "article.fck_detail, .sidebar-1 p",
     "dantri.com.vn":          "div.singular-content, .dt-news__content",
@@ -815,43 +797,73 @@ def _get_domain(url: str) -> str:
     return m.group(1).lower() if m else ""
 
 
-def get_content(url: str) -> tuple[str | None, str | None]:
-    """Lấy nội dung bài báo — newspaper3k trước, fallback BeautifulSoup."""
+def get_content(url: str) -> tuple[str | None, str | None, str | None]:
+    """
+    Lấy (title, content, published_at) từ URL bài báo.
+    Trả về tuple 3 phần tử (title, content, published_at).
+    published_at: "YYYY-MM-DD HH:MM:SS" hoặc None.
+    """
+    html_text = None
+    title     = None
+    content   = None
+    pub_date  = None
+
+    # Thử newspaper3k trước (nhanh, parse tốt)
     try:
-        art = Article(url, language="vi")
+        art = Article(url, language="vi", request_timeout=CONTENT_TIMEOUT)
         art.download()
         art.parse()
 
         title   = (art.title or "").strip()
         content = (art.text  or "").strip()
 
+        # newspaper3k có art.publish_date
+        if art.publish_date:
+            try:
+                pub_date = art.publish_date.strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                pass
+
+        # Nếu chưa có date, thử parse từ HTML raw
+        if not pub_date and art.html:
+            pub_date = extract_date_from_html(art.html, url)
+
         if title and len(content) >= 200:
-            return title, content
+            return title, content, pub_date
+
+        # Giữ lại HTML để dùng cho fallback
+        html_text = art.html
 
     except Exception:
         pass
 
-    return fallback_get_content(url)
+    # BeautifulSoup fallback
+    t, c, d = fallback_get_content(url, html_text)
+    if not pub_date:
+        pub_date = d
+    return (t or title), (c or content), pub_date
 
 
-def fallback_get_content(url: str) -> tuple[str | None, str | None]:
-    """BeautifulSoup fallback với selector chuyên biệt theo domain."""
+def fallback_get_content(url: str, cached_html: str = None) -> tuple[str | None, str | None, str | None]:
+    """BeautifulSoup fallback — trả về (title, content, published_at)."""
     try:
-        html = fetch_url(url)
+        html = cached_html or fetch_url(url, timeout=CONTENT_TIMEOUT)
         if not html:
-            return None, None
+            return None, None, None
 
         soup   = BeautifulSoup(html, "html.parser")
         domain = _get_domain(url)
 
-        # Xóa noise
         for tag in soup(["script", "style", "nav", "header", "footer",
                          "aside", ".ads", ".advertisement", ".related"]):
             tag.decompose()
 
         title = soup.title.string.strip() if soup.title else ""
 
-        # Thử selector domain-specific trước
+        # Parse date từ HTML
+        pub_date = extract_date_from_html(html, url)
+
+        # Domain-specific content selector
         content_text = ""
         for d, sel in _DOMAIN_CONTENT_SELECTORS.items():
             if d in domain:
@@ -860,17 +872,57 @@ def fallback_get_content(url: str) -> tuple[str | None, str | None]:
                     content_text = container.get_text(separator=" ", strip=True)
                     break
 
-        # Fallback: lấy tất cả thẻ <p>
         if len(content_text) < 200:
             paragraphs   = soup.find_all("p")
             content_text = " ".join(p.get_text(separator=" ").strip() for p in paragraphs)
 
-        content_text = " ".join(content_text.split())  # normalize whitespace
+        content_text = " ".join(content_text.split())
 
         if len(content_text) >= 200:
-            return title, content_text
+            return title, content_text, pub_date
 
     except Exception:
         pass
 
-    return None, None
+    return None, None, _parse_date_from_url(url)
+
+
+# ============================================================
+# PARALLEL get_content — dùng trong main.py
+# ============================================================
+
+def get_contents_parallel(
+    items: list[dict],
+    max_workers: int = 8,
+) -> list[dict]:
+    """
+    Fetch content cho nhiều URL song song.
+    Mỗi item dict cần có 'url'. Hàm thêm vào: title, content, published_at.
+    Nếu item đã có published_at thì giữ nguyên, chỉ override nếu HTML trả về chuẩn hơn.
+    """
+    def _fetch(item: dict) -> dict:
+        url = item["url"]
+        try:
+            title, content, pub_from_html = get_content(url)
+            item["title"]   = title
+            item["content"] = content
+            # Ưu tiên date từ HTML (chuẩn hơn) nếu có, không thì giữ từ list page
+            if pub_from_html:
+                item["published_at"] = pub_from_html
+            elif not item.get("published_at"):
+                item["published_at"] = _parse_date_from_url(url)
+        except Exception as e:
+            item["title"]   = None
+            item["content"] = None
+        return item
+
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_fetch, item): item for item in items}
+        for future in as_completed(futures):
+            try:
+                results.append(future.result())
+            except Exception:
+                results.append(futures[future])
+
+    return results
