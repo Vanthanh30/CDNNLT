@@ -30,6 +30,7 @@ from spiders import (
     get_content,
     _scrape_publish_date,   # dùng làm fallback cuối
 )
+from ai_filter import classify_article, get_filter_status
 from database import save_raw_article, init_db
 
 
@@ -238,7 +239,8 @@ def process_urls_parallel(items: list, max_workers: int = 10) -> dict:
 
 def main():
     print("\n" + "=" * 60)
-    print(f"🔍 Bắt đầu thu thập [{datetime.now():%Y-%m-%d %H:%M:%S}]")
+    print("🔍 Bắt đầu thu thập dữ liệu...")
+    print(f"🤖 Bộ lọc AI: {get_filter_status()}")
 
     all_items = crawl_all_sources()
 
@@ -249,11 +251,67 @@ def main():
 
     print(f"\n📦 Tổng link sau lọc trùng: {len(all_items)}")
 
-    if len(all_items) > BATCH_URL_LIMIT:
-        print(f"⚠️  Cắt bớt xuống {BATCH_URL_LIMIT} URL (batch limit)")
-        all_items = all_items[:BATCH_URL_LIMIT]
+    saved   = 0
+    skipped = 0
+    failed  = 0
 
-    counters = process_urls_parallel(all_items, max_workers=10)
+    for i, item in enumerate(all_items):
+        url         = item["url"]
+        source_name = item.get("source_name", "Unknown")
+        pub_at      = item.get("published_at")
+
+        print(f"\n[{i+1}/{len(all_items)}] 🔗 {url[:80]}")
+
+        try:
+            title, content = get_content(url)
+
+            if not title or not content:
+                print("  ⚠️ Không có nội dung → bỏ qua")
+                skipped += 1
+                continue
+
+            if not is_valid_article(title, content):
+                print("  ⏭️ Không phải bài dịch bệnh VN → bỏ qua")
+                skipped += 1
+                continue
+
+            ai_result = classify_article(title, content)
+            if not ai_result["is_relevant"]:
+                print(
+                    "  🤖 AI loại bài: "
+                    f"{ai_result.get('reason', 'không phù hợp')} "
+                    f"(confidence={ai_result.get('confidence', 0):.2f})"
+                )
+                skipped += 1
+                continue
+
+            print(
+                "  🤖 AI giữ bài: "
+                f"{ai_result.get('method', 'unknown')} | "
+                f"{ai_result.get('category', 'unknown')} | "
+                f"{ai_result.get('primary_topic', '')} "
+                f"(confidence={ai_result.get('confidence', 0):.2f})"
+            )
+
+            ok = save_raw_article(
+                title=title,
+                link=url,
+                content=content,
+                source_name=source_name,
+                published_at=pub_at,
+            )
+
+            if ok:
+                saved += 1
+            else:
+                failed += 1
+
+        except Exception as e:
+            print(f"  ❌ Lỗi xử lý: {e}")
+            failed += 1
+
+        # Tránh bị block
+        time.sleep(0.5)
 
     print("\n" + "=" * 60)
     print(f"✅ Lưu thành công : {counters['saved']}")
@@ -272,14 +330,6 @@ if __name__ == "__main__":
 
     main()
 
-    try:
-        from apscheduler.schedulers.blocking import BlockingScheduler
-        scheduler = BlockingScheduler(timezone="Asia/Ho_Chi_Minh")
-        scheduler.add_job(main, "interval", minutes=30, id="crawl_job")
-        print("\n⏱️  Scheduler khởi động — chạy mỗi 30 phút")
-        scheduler.start()
-    except ImportError:
-        print("\n⚠️  APScheduler chưa cài, dùng while loop fallback")
-        while True:
-            time.sleep(30 * 60)
-            main()
+        wait_min = 30
+        print(f"\n⏱️  Nghỉ {wait_min} phút...\n")
+        time.sleep(wait_min * 60)

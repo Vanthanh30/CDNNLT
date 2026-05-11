@@ -15,16 +15,24 @@ DB_USER = "root"
 DB_PASSWORD = "123456"
 DB_NAME = "disease_management"
 
+DB_HOST = "localhost"
+DB_PORT = 3306
+DB_USER = "root"
+DB_PASSWORD = "123456"
+DB_NAME = "disease_management"
+
 
 # ── Import VALID sets từ nlp_engine để validate trước khi lưu DB ──
 def _get_valid_sets():
     from nlp_engine import VALID_LOCATIONS, VALID_DISEASES
+
     return VALID_LOCATIONS, VALID_DISEASES
 
 
 # ========================
 # HELPERS
 # ========================
+
 
 def generate_id() -> str:
     return str(uuid.uuid4())
@@ -69,7 +77,7 @@ def init_db():
 # ── Cửa sổ thời gian hợp lệ ──
 # Cào 10 năm (2016-01-01 → hôm nay) để phục vụ tính năng lọc theo ngày/tháng/năm.
 # Chặn cứng bài trước 2016 và bài tương lai (lỗi timezone).
-_DB_DATE_MIN = datetime(2016, 1, 1)   # 10 năm về trước tính từ 2026
+_DB_DATE_MIN = datetime(2016, 1, 1)  # 10 năm về trước tính từ 2026
 
 
 def _is_date_valid_for_db(dt: datetime) -> bool:
@@ -80,6 +88,7 @@ def _is_date_valid_for_db(dt: datetime) -> bool:
     KHÔNG giới hạn 30 ngày nữa — cào toàn bộ 10 năm để lọc.
     """
     from datetime import timedelta
+
     now = datetime.now()
     if dt < _DB_DATE_MIN:
         return False
@@ -129,6 +138,7 @@ def _normalize_published_at(published_at) -> str | None:
 
         # Đã đúng format MySQL — vẫn PHẢI validate khoảng ngày
         import re
+
         if re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$", raw):
             try:
                 dt = datetime.strptime(raw, "%Y-%m-%d %H:%M:%S")
@@ -153,6 +163,7 @@ def _normalize_published_at(published_at) -> str | None:
         # RFC 2822: Fri, 09 May 2026 10:30:00 +0700
         try:
             from email.utils import parsedate_to_datetime
+
             dt = parsedate_to_datetime(raw).replace(tzinfo=None)
             if not _is_date_valid_for_db(dt):
                 print(f"  ⚠️  published_at ngoài khoảng: {raw} → lưu NULL")
@@ -210,6 +221,7 @@ def _normalize_published_at(published_at) -> str | None:
 # CRAWLER SERVICE
 # ========================
 
+
 def get_or_create_source(
     name: str = "Unknown", source_type: str = "News Website"
 ) -> str | None:
@@ -260,8 +272,8 @@ def save_raw_article(
 
     cursor = conn.cursor()
     try:
-        source_id    = get_or_create_source(source_name, "News Website")
-        raw_id       = generate_id()
+        source_id = get_or_create_source(source_name, "News Website")
+        raw_id = generate_id()
         content_hash = generate_hash(link + (content or ""))
 
         # ── Chuẩn hóa published_at ──
@@ -301,6 +313,7 @@ save_raw_article_v2 = save_raw_article
 # ========================
 # PROCESSOR SERVICE
 # ========================
+
 
 def get_unprocessed_articles(limit: int = 20) -> list:
     conn = get_connection()
@@ -466,7 +479,7 @@ def save_processed_article(
     cases_recovered: int = 0,
 ) -> bool:
     disease_id = get_or_create_disease(disease_name)
-    region_id  = get_or_create_region(location)
+    region_id = get_or_create_region(location)
 
     if not disease_id:
         print(f"  ❌ Không lưu: disease_id = None ('{disease_name}')")
@@ -482,8 +495,8 @@ def save_processed_article(
     cursor = conn.cursor()
     try:
         article_id = generate_id()
-        event_id   = generate_id()
-        static_id  = generate_id()
+        event_id = generate_id()
+        static_id = generate_id()
 
         cursor.execute(
             """
@@ -513,8 +526,12 @@ def save_processed_article(
                 (%s, %s, %s, %s, %s, %s)
             """,
             (
-                static_id, event_id, region_id,
-                cases_infected, cases_dead, cases_recovered,
+                static_id,
+                event_id,
+                region_id,
+                cases_infected,
+                cases_dead,
+                cases_recovered,
             ),
         )
 
@@ -534,6 +551,7 @@ def save_processed_article(
 # ========================
 # API GATEWAY
 # ========================
+
 
 def get_all_processed_articles(limit: int = 100) -> list:
     conn = get_connection()
@@ -580,7 +598,13 @@ def get_all_processed_articles(limit: int = 100) -> list:
 
 def filter_articles(
     keyword: str = None,
+    keyword: str = None,
     disease_name: str = None,
+    location: str = None,
+    from_date: str = None,
+    to_date: str = None,
+    risk_level: str = None,
+    limit: int = 50,
     location: str = None,
     from_date: str = None,
     to_date: str = None,
@@ -661,6 +685,7 @@ def filter_articles(
 # ========================
 # STATS HELPERS
 # ========================
+
 
 def get_stats_by_disease(limit: int = 20) -> list:
     conn = get_connection()

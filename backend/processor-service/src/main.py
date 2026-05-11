@@ -13,11 +13,13 @@ import re
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from ai_filter import classify_article
 from nlp_engine import extract_info, is_valid_disease, is_valid_location
 from database import (
     get_unprocessed_articles,
     save_processed_article,
-    save_article_only,
+    save_article_only,          # ← hàm mới, xem database.py
+    delete_raw_article,
     init_db,
 )
 
@@ -125,25 +127,40 @@ def process_batch(limit: int = BATCH_SIZE) -> int:
 
     # ── Bước 2: Lưu DB tuần tự (tránh deadlock) ──
     success = 0
-    partial = 0
+    partial = 0   # lưu ARTICLE nhưng không có event (thiếu disease/location)
+    rejected = 0  # AI xác định không liên quan dịch bệnh
     failed  = 0
 
     for r in nlp_results:
         raw_id = r["raw_id"]
         title  = r.get("title", "")[:70]
 
-        print(f"\n💾 [{raw_id[:8]}...] {title}")
+        print(f"\n🧠 [{raw_id[:8]}...] {title[:70]}")
 
-        if r["error"]:
-            print(f"  ❌ Lỗi NLP: {r['error']}")
-            failed += 1
-            continue
+        try:
+            ai_result = classify_article(title, content)
+            if not ai_result["is_relevant"]:
+                print(
+                    "  🤖 AI loại bài không liên quan dịch bệnh: "
+                    f"{ai_result.get('method', 'unknown')} | "
+                    f"{ai_result.get('reason', 'không phù hợp')} "
+                    f"(confidence={ai_result.get('confidence', 0):.2f})"
+                )
+                if delete_raw_article(raw_id):
+                    rejected += 1
+                    print("  🗑️ Đã xóa RAW_ARTICLE khỏi hàng đợi")
+                else:
+                    failed += 1
+                    print("  ❌ Không xóa được RAW_ARTICLE")
+                continue
 
-        result = r["result"]
+            result = extract_info(title=title, content=content)
 
-        print(f"  🦠 {result['disease_name']} ({'✅' if result['disease_valid'] else '❌'})")
-        print(f"  📍 {result['location']} ({'✅' if result['location_valid'] else '❌'})")
-        print(f"  ⚠️  {result['risk_level']} | 🤒{result['cases']} 💀{result['cases_dead']}")
+            print(f"  🦠 Bệnh    : {result['disease_name']} ({'✅' if result['disease_valid'] else '❌'})")
+            print(f"  📍 Địa điểm: {result['location']} ({'✅' if result['location_valid'] else '❌'})")
+            print(f"  👥 Nhóm    : {result['group']}")
+            print(f"  ⚠️  Rủi ro  : {result['risk_level']}")
+            print(f"  🤒 Nhiễm   : {result['cases']} | Chết: {result['cases_dead']} | Khỏi: {result['cases_recovered']}")
 
         if not result["disease_valid"] or not result["location_valid"]:
             ok = save_article_only(
@@ -184,8 +201,15 @@ def process_batch(limit: int = BATCH_SIZE) -> int:
             failed += 1
             print("  ❌ Lưu thất bại")
 
-    print(f"\n📊 Batch: ✅{success} đầy đủ | ℹ️{partial} article-only | ❌{failed} lỗi")
-    return success + partial
+        except Exception as e:
+            print(f"  ❌ Lỗi xử lý: {e}")
+            failed += 1
+
+    print(
+        f"\n📊 Kết quả batch: ✅ {success} đầy đủ | "
+        f"ℹ️  {partial} article-only | 🗑️ {rejected} bị loại | ❌ {failed} lỗi"
+    )
+    return success + partial + rejected
 
 
 # ========================
@@ -196,25 +220,16 @@ if __name__ == "__main__":
     print("🚀 Processor Service khởi động...")
     init_db()
 
-    # Hiển thị số bài pending
-    try:
-        from database import get_unprocessed_count
-        pending = get_unprocessed_count()
-        print(f"📥 Bài chưa xử lý: {pending}")
-    except Exception:
-        pass
+    BATCH_SIZE = 20
+    SLEEP_SECS = 10
 
-    # Chạy ngay lần đầu
-    process_batch()
+    while True:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"\n⚙️  [{now}] Bắt đầu xử lý batch...")
 
-    try:
-        from apscheduler.schedulers.blocking import BlockingScheduler
-        scheduler = BlockingScheduler(timezone="Asia/Ho_Chi_Minh")
-        scheduler.add_job(process_batch, "interval", minutes=10, id="process_job")
-        print("\n⏱️  Scheduler: xử lý mỗi 10 phút")
-        scheduler.start()
-    except ImportError:
-        print("\n⚠️  APScheduler chưa cài, dùng while loop fallback")
-        while True:
-            processed = process_batch()
-            time.sleep(SLEEP_EMPTY if processed == 0 else SLEEP_NORMAL)
+        processed = process_batch(limit=BATCH_SIZE)
+
+        if processed == 0:
+            time.sleep(60)
+        else:
+            time.sleep(SLEEP_SECS)
