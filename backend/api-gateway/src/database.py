@@ -9,7 +9,6 @@ DB_HOST = "localhost"
 DB_PORT = 3306
 DB_USER = "root"
 DB_PASSWORD = "123456"
-DB_PASSWORD = "123456"
 DB_NAME = "disease_management"
 
 
@@ -30,7 +29,6 @@ def get_connection(retries=5, delay=2):
                 user=DB_USER,
                 password=DB_PASSWORD,
                 database=DB_NAME,
-                charset="utf8mb4",
                 charset="utf8mb4",
             )
         except Error as e:
@@ -57,7 +55,6 @@ def init_db():
 # =========================
 
 
-
 def get_or_create_source(name="Unknown", source_type="News Website"):
     conn = get_connection()
     if not conn:
@@ -66,6 +63,7 @@ def get_or_create_source(name="Unknown", source_type="News Website"):
     cursor = conn.cursor(dictionary=True)
 
     cursor.execute("SELECT id FROM SOURCE WHERE name = %s LIMIT 1", (name,))
+
     row = cursor.fetchone()
 
     if row:
@@ -77,7 +75,6 @@ def get_or_create_source(name="Unknown", source_type="News Website"):
 
     cursor.execute(
         "INSERT INTO SOURCE (id, name, type) VALUES (%s, %s, %s)",
-        (source_id, name, source_type),
         (source_id, name, source_type),
     )
 
@@ -143,7 +140,6 @@ def save_raw_article(title, link, content, source_name="Unknown", published_at=N
 # =========================
 
 
-
 def get_unprocessed_articles(limit=10):
     """
     Lấy bài RAW_ARTICLE chưa được xử lý sang ARTICLE.
@@ -169,7 +165,6 @@ def get_unprocessed_articles(limit=10):
         LIMIT %s
         """,
         (limit,),
-        (limit,),
     )
 
     rows = cursor.fetchall()
@@ -191,6 +186,7 @@ def get_or_create_disease(name):
     cursor = conn.cursor(dictionary=True)
 
     cursor.execute("SELECT id FROM DISEASE WHERE name = %s LIMIT 1", (name,))
+
     row = cursor.fetchone()
 
     if row:
@@ -223,6 +219,7 @@ def get_or_create_region(name):
     cursor = conn.cursor(dictionary=True)
 
     cursor.execute("SELECT id FROM REGION WHERE name = %s LIMIT 1", (name,))
+
     row = cursor.fetchone()
 
     if row:
@@ -254,7 +251,6 @@ def save_processed_article(
     risk_level="LOW",
     cases_infected=0,
     cases_dead=0,
-    cases_recovered=0,
     cases_recovered=0,
 ):
     """
@@ -323,8 +319,6 @@ def save_processed_article(
                 cases_dead,
                 cases_recovered,
             ),
-                cases_recovered,
-            ),
         )
 
         conn.commit()
@@ -378,7 +372,6 @@ def get_all_processed_articles(limit=None):
         ORDER BY a.processed_at DESC
     """
 
-    # Chỉ thêm LIMIT khi limit có giá trị
     if limit is not None:
         query += " LIMIT %s"
         cursor.execute(query, (limit,))
@@ -400,7 +393,6 @@ def filter_articles(
     from_date=None,
     to_date=None,
     risk_level=None,
-    limit=50,
     limit=50,
 ):
     conn = get_connection()
@@ -478,7 +470,6 @@ def filter_articles(
 
     query += " ORDER BY a.processed_at DESC"
 
-    # Chỉ limit khi có truyền limit
     if limit is not None:
         query += " LIMIT %s"
         params.append(int(limit))
@@ -490,144 +481,3 @@ def filter_articles(
     conn.close()
 
     return rows
-
-def extract_keywords(question: str):
-    q = question.lower()
-
-    disease = None
-    location = None
-
-    # lấy tất cả disease trong DB
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    cursor.execute("SELECT name FROM DISEASE")
-    diseases = [d["name"].lower() for d in cursor.fetchall()]
-
-    cursor.execute("SELECT name FROM REGION")
-    regions = [r["name"].lower() for r in cursor.fetchall()]
-
-    cursor.close()
-    conn.close()
-
-    for d in diseases:
-        if d in q:
-            disease = d
-            break
-
-    for r in regions:
-        if r in q:
-            location = r
-            break
-
-    return disease, location
-
-def search_chatbot_context(question: str, limit: int = 5):
-    conn = get_connection()
-    if not conn:
-        return []
-
-    cursor = conn.cursor(dictionary=True)
-
-    disease, location = extract_keywords(question)
-
-    query = """
-        SELECT
-            r.title,
-            r.url,
-            a.summary,
-            a.content_clean,
-            d.name AS disease_name,
-            rg.name AS location,
-            de.event_date,
-            de.risk_level,
-            s.cases_infected,
-            s.cases_dead,
-            s.cases_recovered
-        FROM ARTICLE a
-        JOIN RAW_ARTICLE r ON a.raw_article_id = r.id
-        LEFT JOIN DISEASE_EVENT de ON de.article_id = a.id
-        LEFT JOIN DISEASE d ON de.disease_id = d.id
-        LEFT JOIN REGION rg ON de.region_id = rg.id
-        LEFT JOIN STATIC s ON s.event_id = de.id
-        WHERE 1=1
-    """
-
-    params = []
-
-    # lọc theo disease
-    if disease:
-        query += " AND d.name LIKE %s"
-        params.append(f"%{disease}%")
-
-    # lọc theo location
-    if location:
-        query += " AND rg.name LIKE %s"
-        params.append(f"%{location}%")
-
-    # nếu không có gì thì fallback search nhẹ
-    if not disease and not location:
-        like = f"%{question}%"
-        query += """
-            AND (
-                r.title LIKE %s
-                OR a.summary LIKE %s
-            )
-        """
-        params.extend([like, like])
-
-    query += " ORDER BY a.processed_at DESC LIMIT %s"
-    params.append(limit)
-
-    cursor.execute(query, tuple(params))
-    rows = cursor.fetchall()
-
-    cursor.close()
-    conn.close()
-
-    return rows
-
-
-def generate_chatbot_answer(question: str):
-    rows = search_chatbot_context(question, limit=5)
-
-    if not rows:
-        return {
-            "answer": "❌ Không tìm thấy dữ liệu phù hợp.",
-            "sources": []
-        }
-
-    # gom theo khu vực
-    result = {}
-
-    for row in rows:
-        disease = row.get("disease_name") or "Không xác định"
-        location = row.get("location") or "Không xác định"
-
-        if disease not in result:
-            result[disease] = []
-
-        result[disease].append(location)
-
-    answer_parts = []
-
-    for disease, locations in result.items():
-        unique_locations = list(set(locations))
-        answer_parts.append(
-            f"📌 Dịch bệnh '{disease}' xuất hiện tại: {', '.join(unique_locations)}"
-        )
-
-    sources = []
-    for row in rows:
-        sources.append({
-            "title": row.get("title"),
-            "url": row.get("url"),
-            "disease_name": row.get("disease_name"),
-            "location": row.get("location"),
-            "risk_level": row.get("risk_level")
-        })
-
-    return {
-        "answer": "\n".join(answer_parts),
-        "sources": sources
-    }

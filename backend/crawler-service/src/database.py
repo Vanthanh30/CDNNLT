@@ -598,13 +598,7 @@ def get_all_processed_articles(limit: int = 100) -> list:
 
 def filter_articles(
     keyword: str = None,
-    keyword: str = None,
     disease_name: str = None,
-    location: str = None,
-    from_date: str = None,
-    to_date: str = None,
-    risk_level: str = None,
-    limit: int = 50,
     location: str = None,
     from_date: str = None,
     to_date: str = None,
