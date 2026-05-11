@@ -3,29 +3,43 @@
   border-radius: 12px;
   padding: 32px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
+
 .report-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 24px;
 }
+
+.report-left-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .header-titles h1 {
   font-size: 24px;
   font-weight: 600;
   color: #f8fafc;
   margin: 0 0 6px 0;
 }
+
 .header-titles p {
   font-size: 14px;
   color: #94a3b8;
   margin: 0;
 }
+
 .header-actions {
   display: flex;
   gap: 12px;
   align-items: center;
 }
+
 .btn-export-main {
   background-color: #dbeafe;
   color: #1e3a8a;
@@ -40,9 +54,11 @@
   cursor: pointer;
   transition: all 0.2s ease;
 }
+
 .btn-export-main:hover {
   background-color: #bfdbfe;
 }
+
 .btn-secondary {
   background-color: transparent;
   color: #38bdf8;
@@ -57,9 +73,11 @@
   cursor: pointer;
   transition: all 0.2s ease;
 }
+
 .btn-secondary:hover:not(:disabled) {
   background-color: rgba(56, 189, 248, 0.1);
 }
+
 .btn-secondary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -67,149 +85,65 @@
   color: #64748b;
 }
 
-.summary-title-group {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-.summary-title-group h3 {
-  font-size: 13px;
-  letter-spacing: 1px;
-  color: #94a3b8;
-  margin: 0;
-}
-.risk-badge {
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-}
-.risk-badge.critical {
-  background-color: rgba(153, 27, 27, 0.2);
-  color: #fca5a5;
-  border: 1px solid rgba(248, 113, 113, 0.3);
-}
-.risk-badge.warning {
-  background-color: rgba(180, 83, 9, 0.2);
-  color: #fcd34d;
-  border: 1px solid rgba(251, 191, 36, 0.3);
-}
-.meta-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-bottom: 40px;
-}
-.meta-item {
+/* =========================================
+   KHUNG PREVIEW BÁO CÁO PDF
+========================================= */
+.pdf-preview-container {
+  flex: 1; /* Chiếm toàn bộ không gian còn lại bên dưới */
+  background-color: #0f172a;
+  border: 1px dashed #334155;
+  border-radius: 8px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-.meta-label {
-  font-size: 11px;
-  color: #64748b;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-}
-.meta-value {
-  font-size: 14px;
-  color: #f8fafc;
-  font-weight: 500;
+  min-height: 650px;
 }
 
-.section-heading {
+.embedded-pdf-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  flex: 1;
+  background-color: #cbd5e1; /* Nền xám nhạt để PDF trắng nổi bật */
+}
+
+/* ── TRẠNG THÁI TRỐNG (KHI CHƯA BẤM NÚT) ── */
+.empty-preview-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  text-align: center;
+  padding: 40px;
+}
+
+.empty-icon-wrapper {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background-color: rgba(100, 116, 139, 0.1);
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
   margin-bottom: 16px;
-}
-.section-heading h4 {
-  margin: 0;
-  font-size: 13px;
-  letter-spacing: 1px;
-  color: #f8fafc;
-}
-.bullet-point {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: #38bdf8;
-}
-.narrative-content {
-  background-color: rgba(15, 23, 42, 0.4);
-  padding: 20px;
-  border-radius: 8px;
-  font-size: 14px;
-  line-height: 1.6;
-  color: #cbd5e1;
-  margin-bottom: 40px;
-}
-.narrative-content p {
-  margin: 0 0 16px 0;
-}
-.bold-label {
-  font-weight: 600;
-  color: #f8fafc;
-  margin-bottom: 8px !important;
-}
-.ai-quote-box {
-  background-color: rgba(56, 189, 248, 0.05);
-  border-left: 3px solid #38bdf8;
-  padding: 16px;
-  margin: 16px 0;
-  border-radius: 0 8px 8px 0;
-}
-.quote-label {
-  display: block;
-  font-size: 11px;
-  font-weight: 700;
-  color: #38bdf8;
-  margin-bottom: 8px;
-  letter-spacing: 0.5px;
-}
-.ai-quote-box p {
-  margin: 0;
-  font-style: italic;
-  color: #94a3b8;
-  line-height: 1.5;
-}
-.action-list {
-  margin: 0 0 16px 0;
-  padding-left: 20px;
-}
-.action-list li {
-  margin-bottom: 6px;
-  color: #cbd5e1;
+  color: #475569;
 }
 
-.signature-box {
-  margin-top: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px dashed #475569;
-  margin-bottom: 16px;
+.empty-preview-state p {
+  font-size: 16px;
+  font-weight: 600;
+  color: #94a3b8;
+  margin: 0 0 8px 0;
 }
-.sig-line {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
+
+.empty-preview-state span {
+  font-size: 13px;
+  max-width: 280px;
+  line-height: 1.5;
 }
-.sig-text {
-  font-family: "Dancing Script", cursive;
-  font-size: 20px;
-  color: #64748b;
-  opacity: 0.5;
-}
-.sig-hash {
-  font-size: 11px;
-  font-family: monospace;
-  color: #64748b;
-}
-.footer-warning {
-  font-size: 10px;
-  color: #475569;
-  text-align: center;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+
+.empty-preview-state strong {
+  color: #38bdf8;
 }

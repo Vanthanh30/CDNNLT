@@ -12,11 +12,9 @@ const ReportsContent = () => {
 
   const {
     latestArticle,
-    isHighRisk,
     reportData,
     chatStats,
     previewUrl,
-    setPreviewUrl,
     isLoadingPdf,
     handlePreview,
     handleDownload,
@@ -24,40 +22,13 @@ const ReportsContent = () => {
 
   return (
     <div className="risk-report-container">
-      {/* MODAL XEM TRƯỚC PDF */}
-      {previewUrl && (
-        <div className="pdf-modal-overlay" onClick={() => setPreviewUrl(null)}>
-          <div className="pdf-modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="pdf-modal-header">
-              <h3>Bản xem trước Báo cáo PDF</h3>
-              <div className="pdf-modal-actions">
-                <button
-                  className="btn-close-modal"
-                  onClick={() => setPreviewUrl(null)}
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-            <div className="pdf-modal-body">
-              <iframe
-                src={previewUrl}
-                title="PDF Preview"
-                className="pdf-iframe"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* LƯỚI GIAO DIỆN CHÍNH */}
       <div className="report-grid">
         <ReportLeftPanel
-          latestArticle={latestArticle}
-          isHighRisk={isHighRisk}
           isLoadingPdf={isLoadingPdf}
           handlePreview={handlePreview}
           handleDownload={handleDownload}
+          previewUrl={previewUrl}
         />
 
         <ReportRightPanel

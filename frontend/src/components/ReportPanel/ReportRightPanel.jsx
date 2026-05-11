@@ -27,8 +27,6 @@ const ReportRightPanel = ({
           <span className="chart-title">
             <TrendingUp size={14} /> TẦN SUẤT XUẤT HIỆN TIN TỨC (7 NGÀY)
           </span>
-          {/* 🟢 Khôi phục Badge +12% Dự đoán */}
-          <span className="chart-badge">+12% Dự đoán</span>
         </div>
         <div className="bar-chart-area">
           {chartData?.map((day, idx) => (
