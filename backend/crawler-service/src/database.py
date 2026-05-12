@@ -449,7 +449,7 @@ def save_article_only(
             INSERT INTO ARTICLE
                 (id, raw_article_id, summary, content_clean, processed_at)
             VALUES
-                (%s, %s, %s, %s, CURDATE())
+                (%s, %s, %s, %s, NOW())
             """,
             (article_id, raw_article_id, summary, content_clean),
         )
@@ -503,7 +503,7 @@ def save_processed_article(
             INSERT INTO ARTICLE
                 (id, raw_article_id, summary, content_clean, processed_at)
             VALUES
-                (%s, %s, %s, %s, CURDATE())
+                (%s, %s, %s, %s, NOW())
             """,
             (article_id, raw_article_id, summary, content_clean),
         )
@@ -560,14 +560,14 @@ def get_all_processed_articles(limit: int = 100) -> list:
 
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute(
-            """
+        query = """
             SELECT
                 a.id          AS article_id,
                 r.title,
                 r.url,
                 r.content     AS raw_content,
                 r.published_at,
+                r.crawled_at,
                 a.summary,
                 a.content_clean,
                 d.name        AS disease_name,
@@ -585,10 +585,13 @@ def get_all_processed_articles(limit: int = 100) -> list:
             LEFT JOIN REGION rg        ON de.region_id    = rg.id
             LEFT JOIN STATIC s         ON s.event_id      = de.id
             ORDER BY a.processed_at DESC
-            LIMIT %s
-            """,
-            (limit,),
-        )
+        """
+        if limit is not None:
+            query += " LIMIT %s"
+            cursor.execute(query, (limit,))
+        else:
+            cursor.execute(query)
+
         return cursor.fetchall()
 
     finally:

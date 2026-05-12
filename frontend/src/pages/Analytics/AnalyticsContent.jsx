@@ -7,7 +7,6 @@ import {
 import FloatingChat from "../../components/FloatingChat/FloatingChat";
 import "./AnalyticsContent.css";
 
-// ── Constants ──────────────────────────────────────────────
 const API_BASE_URL = "http://localhost:8000";
 
 const PALETTE = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#f97316"];
@@ -20,7 +19,6 @@ const TIME_OPTIONS = [
 
 const TABLE_COLS = ["Tên bệnh", "Số bài", "Tỷ lệ", "Xu hướng", "Kỳ phân tích"];
 
-// ── Helpers ───────────────────────────────────────────────
 const fmt2 = (n) => String(n).padStart(2, "0");
 
 const fmtDate = (d) => {
@@ -55,8 +53,22 @@ const hostname = (url) => {
   try { return new URL(url).hostname.replace("www.", ""); }
   catch { return null; }
 };
+const getArticleDate = (article) => {
+  const candidates = [
+    article.published_at,
+    article.event_date,
+    article.processed_at,
+    article.crawled_at,
+  ];
 
-// ── Tooltips ──────────────────────────────────────────────
+  for (const raw of candidates) {
+    if (!raw) continue;
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return null;
+};
+
 const HourTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
@@ -101,7 +113,6 @@ const HBarTooltip = ({ active, payload }) => {
   );
 };
 
-// ── Sub-components ────────────────────────────────────────
 const StatCard = ({ icon: Icon, label, value, sub, color }) => (
   <div className="ac-stat-card">
     <div className="ac-stat-icon" style={{ background: `${color}18`, color }}>
@@ -166,13 +177,13 @@ const BarLabel = ({ x, y, width, value }) => {
   );
 };
 
-// ── Analytics computation ─────────────────────────────────
 const computeAnalytics = (articles, timeRange) => {
   if (!articles.length) return { stats: null, analytics: null };
 
   const cutoff = getCutoff(timeRange);
+
   const inRange = articles.filter((a) => {
-    const d = parseDate(a.processed_at);
+    const d = getArticleDate(a);
     return d && d >= cutoff;
   });
 
@@ -192,12 +203,11 @@ const computeAnalytics = (articles, timeRange) => {
     top_keyword_count: topEntries[0]?.[1] || 0,
   };
 
-  // ── 24H: group by HOUR (24 slots) ──────────────────────
   let hourlyData = null;
   if (timeRange === 1) {
     const hourMap = {};
     inRange.forEach((a) => {
-      const d = parseDate(a.processed_at);
+      const d = getArticleDate(a);
       if (!d) return;
       const h = d.getHours();
       hourMap[h] = (hourMap[h] || 0) + 1;
@@ -208,10 +218,9 @@ const computeAnalytics = (articles, timeRange) => {
     }));
   }
 
-  // ── Daily counts (dùng cho 7/30 ngày) ─────────────────
   const dayMapActual = {};
   inRange.forEach((a) => {
-    const d = parseDate(a.processed_at);
+    const d = getArticleDate(a);
     if (!d) return;
     const k = dateKey(d);
     dayMapActual[k] = (dayMapActual[k] || 0) + 1;
@@ -226,7 +235,6 @@ const computeAnalytics = (articles, timeRange) => {
     return { date: k, count: dayMapActual[k] || 0 };
   });
 
-  // Top diseases trong kỳ
   const rangeDiseases = {};
   inRange.forEach((a) => {
     if (a.disease_name) rangeDiseases[a.disease_name] = (rangeDiseases[a.disease_name] || 0) + 1;
@@ -236,7 +244,6 @@ const computeAnalytics = (articles, timeRange) => {
     .slice(0, 10)
     .map(([keyword, count]) => ({ keyword, count }));
 
-  // Horizontal bar data cho 24H (top 7)
   const hbarData = topKeywords.slice(0, 7).map((kw, idx) => ({
     name: kw.keyword,
     count: kw.count,
@@ -245,11 +252,10 @@ const computeAnalytics = (articles, timeRange) => {
 
   const top3 = topKeywords.slice(0, 3).map((k) => k.keyword);
 
-  // Line chart data (7/30 ngày)
   const lineMap = {};
   inRange.forEach((a) => {
     if (!a.disease_name || !top3.includes(a.disease_name)) return;
-    const d = parseDate(a.processed_at);
+    const d = getArticleDate(a);
     if (!d) return;
     const k = dateKey(d);
     if (!lineMap[k]) lineMap[k] = {};
@@ -277,7 +283,6 @@ const computeAnalytics = (articles, timeRange) => {
   };
 };
 
-// ── Main component ────────────────────────────────────────
 const AnalyticsContent = () => {
   const [timeRange, setTimeRange] = useState(7);
   const [articles, setArticles] = useState([]);
@@ -331,7 +336,6 @@ const AnalyticsContent = () => {
 
   const hasHbarData = is24H && (analytics?.hbar_data || []).length > 0;
 
-  // Chiều cao horizontal bar chart tự điều chỉnh theo số bệnh
   const hbarHeight = Math.max(180, (analytics?.hbar_data?.length || 0) * 42 + 24);
 
   return (
@@ -343,7 +347,6 @@ const AnalyticsContent = () => {
         />
       )}
 
-      {/* Header */}
       <div className="ac-header">
         <div>
           <h1 className="ac-title">Phân tích & Xu hướng Dịch bệnh</h1>
@@ -366,7 +369,6 @@ const AnalyticsContent = () => {
         </div>
       </div>
 
-      {/* Stat cards */}
       <div className="ac-stats-row">
         <StatCard
           icon={FileText}
@@ -398,11 +400,9 @@ const AnalyticsContent = () => {
         />
       </div>
 
-      {/* Main grid */}
       <div className="ac-grid">
         <div className="ac-col-main">
 
-          {/* Chart 1: theo giờ (24H) hoặc theo ngày (7/30) */}
           <div className="ac-panel">
             <div className="ac-panel-header">
               <h3>{is24H ? "Số bài cào được theo giờ" : "Số bài cào được theo ngày"}</h3>
@@ -485,7 +485,6 @@ const AnalyticsContent = () => {
             )}
           </div>
 
-          {/* Chart 2: Horizontal bar (24H) hoặc Line chart (7/30) */}
           <div className="ac-panel">
             <div className="ac-panel-header">
               <h3>{is24H ? "Phân bố bệnh trong 24 giờ" : "Top bệnh theo ngày"}</h3>
@@ -596,7 +595,6 @@ const AnalyticsContent = () => {
           </div>
         </div>
 
-        {/* Sidebar */}
         <div className="ac-col-side">
           <div className="ac-panel ac-panel-fill">
             <div className="ac-panel-header">
@@ -655,7 +653,6 @@ const AnalyticsContent = () => {
         </div>
       </div>
 
-      {/* Table */}
       <div className="ac-panel">
         <div className="ac-panel-header">
           <h3>Bảng chi tiết bệnh nổi bật</h3>

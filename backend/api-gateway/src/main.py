@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import sys
 from pathlib import Path
 from typing import Optional
@@ -40,14 +40,18 @@ def startup_event():
 
 
 # ============================================================
-# ✨ ENDPOINT MỚI CHO MAP - THÊM TỪ ĐÂY
+# ✨ ENDPOINT CHO MAP - VỚI TIME FILTER
 # ============================================================
 
 
 @app.get("/locations")
-def get_locations():
+def get_locations(hours: Optional[int] = None):
     """
     Trả về danh sách các vùng dịch bệnh với tọa độ GPS
+
+    Query params:
+    - hours (optional): Lọc dữ liệu trong N giờ qua (vd: 24 = 24 giờ qua)
+               Nếu không có hoặc None, trả toàn bộ dữ liệu
 
     Response:
     [
@@ -67,8 +71,19 @@ def get_locations():
     cursor = conn.cursor(dictionary=True)
 
     try:
-        cursor.execute(
+        # ✅ FIX: Thêm điều kiện thời gian nếu hours được truyền vào
+        time_filter = ""
+        if hours is not None and hours > 0:
+            # Lọc theo processed_at của ARTICLE (thời điểm xử lý xong)
+            # hoặc published_at của RAW_ARTICLE (nếu có)
+            # Ưu tiên dùng published_at của RAW_ARTICLE nếu có, fallback sang processed_at
+            time_filter = f"""
+            AND (
+                COALESCE(r.published_at, a.processed_at) >= DATE_SUB(NOW(), INTERVAL {int(hours)} HOUR)
+            )
             """
+
+        query = f"""
             SELECT 
                 rg.name AS location_name,
                 COUNT(de.id) AS article_count,
@@ -77,12 +92,14 @@ def get_locations():
             JOIN REGION rg ON de.region_id = rg.id
             JOIN ARTICLE a ON de.article_id = a.id
             JOIN RAW_ARTICLE r ON a.raw_article_id = r.id
+            WHERE 1 = 1
+            {time_filter}
             GROUP BY rg.id, rg.name
             ORDER BY article_count DESC
             LIMIT 50
-            """
-        )
+        """
 
+        cursor.execute(query)
         rows = cursor.fetchall()
 
         # Mapping tọa độ GPS cho các tỉnh/thành Việt Nam
@@ -165,7 +182,7 @@ def get_locations():
 
             # Parse article titles (được join bằng |||)
             titles_str = row["article_titles"] or ""
-            articles = [t.strip() for t in titles_str.split("|||")][:5]
+            articles = [t.strip() for t in titles_str.split("|||") if t.strip()][:5]
 
             result.append(
                 {
@@ -262,7 +279,6 @@ def download_weekly_report():
     )
 
 
-
 def serialize_rows(rows):
     result = []
     for row in rows:
@@ -281,38 +297,31 @@ def chat(request: ChatRequest):
     rows = database.search_chatbot_context(request.question, limit=5)
 
     if not rows:
-        return {
-            "answer": "Không tìm thấy dữ liệu phù hợp.",
-            "sources": []
-        }
+        return {"answer": "Không tìm thấy dữ liệu phù hợp.", "sources": []}
 
     ai_answer = call_chatbot_service(request.question, rows)
 
     sources = []
     for row in rows:
-        sources.append({
-            "title": row.get("title"),
-            "url": row.get("url"),
-            "disease_name": row.get("disease_name"),
-            "location": row.get("location"),
-            "risk_level": row.get("risk_level")
-        })
+        sources.append(
+            {
+                "title": row.get("title"),
+                "url": row.get("url"),
+                "disease_name": row.get("disease_name"),
+                "location": row.get("location"),
+                "risk_level": row.get("risk_level"),
+            }
+        )
 
-    return {
-        "answer": ai_answer,
-        "sources": sources
-    }
+    return {"answer": ai_answer, "sources": sources}
 
 
 def call_chatbot_service(question, rows):
     try:
         response = requests.post(
             CHATBOT_SERVICE_URL,
-            json={
-                "question": question,
-                "context": serialize_rows(rows)  # ✅ fix
-            },
-            timeout=10
+            json={"question": question, "context": serialize_rows(rows)},
+            timeout=10,
         )
 
         if response.status_code == 200:

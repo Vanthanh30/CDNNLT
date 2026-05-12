@@ -10,6 +10,13 @@ THAY ĐỔI:
   - DanTri: fix logic stop/skip, parse date từ time[datetime]
   - Tất cả spider: fallback date từ URL pattern (YYYY/MM/DD)
   - RSS feeds: parse date chuẩn RFC-2822 và ISO-8601
+
+BUG FIXES:
+  - Bug 1: crawl_suckhoedoisong() — NameError 'hrefs' → dùng hrefs_dates
+  - Bug 2: crawl_nongnghiep()     — NameError 'hrefs' → dùng hrefs_dates
+  - Bug 3: crawl_thuy()           — NameError 'items' → dùng 'links'
+  - Bug 4: crawl_cucbvtv()        — NameError 'items' → dùng 'links'
+  - Bug 5: _parse_iso_date()      — hàm không tồn tại → thay bằng _parse_iso()
 """
 
 import re
@@ -389,8 +396,6 @@ def crawl_vnexpress(keyword: str, max_pages: int = 5) -> list[dict]:
                     except Exception:
                         pass
 
-            # Fallback: parse từ URL (VnExpress URL có dạng /chu-de/tieu-de-NNNNNNN.html
-            # không có date, nhưng thử anyway)
             if not pub_date:
                 pub_date = _parse_date_from_url(href)
 
@@ -446,12 +451,6 @@ def crawl_dantri(keyword: str, max_pages: int = 5) -> list[dict]:
                     href = "https://dantri.com.vn" + href
                 if re.search(r"dantri\.com\.vn/[a-z\-]+/[a-z0-9\-]+-\d{8,}\.htm", href):
                     if is_valid_url(href):
-                        # Lấy ngày từ URL: -YYYYMMDD.htm
-                        pub_date = None
-                        m = re.search(r"-(\d{8})\.htm", href)
-                        if m:
-                            s = m.group(1)
-                            pub_date = f"{s[:4]}-{s[4:6]}-{s[6:]} 00:00:00"
                         results.append(
                             {
                                 "url": href.strip(),
@@ -475,7 +474,6 @@ def crawl_dantri(keyword: str, max_pages: int = 5) -> list[dict]:
                 parsed = _parse_iso(raw_dt)
                 if parsed:
                     published_at = parsed
-                    # Bài quá cũ → skip bài này nhưng KHÔNG dừng toàn trang
                     try:
                         pub_obj = datetime.strptime(parsed[:10], "%Y-%m-%d")
                         if pub_obj < from_date:
@@ -495,14 +493,12 @@ def crawl_dantri(keyword: str, max_pages: int = 5) -> list[dict]:
                 href = a_tag.get("href", "")
                 if href.startswith("/"):
                     href = "https://dantri.com.vn" + href
-                # Fallback ngày từ URL nếu chưa có
                 if not published_at:
                     m = re.search(r"-(\d{8})\.htm", href)
                     if m:
                         s = m.group(1)
                         published_at = f"{s[:4]}-{s[4:6]}-{s[6:]} 00:00:00"
                 if is_valid_url(href):
-                    # Fallback date từ URL nếu chưa có
                     if not published_at:
                         published_at = _parse_date_from_url(href)
                     results.append(
@@ -517,7 +513,6 @@ def crawl_dantri(keyword: str, max_pages: int = 5) -> list[dict]:
             f"  [DanTri] Trang {page}: {len(articles)} bài ({old_article_count} quá cũ)"
         )
         time.sleep(0.5)
-        # Chỉ dừng nếu TOÀN BỘ trang đều là bài cũ
         if old_article_count == len(articles) and old_article_count > 0:
             print(f"  [DanTri] Toàn trang đều cũ, dừng.")
             break
@@ -527,6 +522,7 @@ def crawl_dantri(keyword: str, max_pages: int = 5) -> list[dict]:
 
 # ============================================================
 # 3. SỨC KHỎE & ĐỜI SỐNG
+# FIX Bug 1: thay 'hrefs' → 'hrefs_dates'; Bug 5: _parse_iso_date → _parse_iso
 # ============================================================
 def crawl_suckhoedoisong(keyword: str, max_pages: int = 5) -> list[dict]:
     results = []
@@ -549,14 +545,14 @@ def crawl_suckhoedoisong(keyword: str, max_pages: int = 5) -> list[dict]:
                 if href.startswith("/"):
                     href = "https://suckhoedoisong.vn" + href
                 if is_valid_url(href) and "suckhoedoisong.vn" in href:
-                    # Lấy ngày từ element cha
                     pub_date = None
                     parent = a.find_parent()
                     if parent:
                         t = parent.select_one("time, .story__time, .story__date, .date")
                         if t:
                             raw = t.get("datetime") or t.get_text(strip=True)
-                            pub_date = _parse_iso_date(raw)
+                            # FIX Bug 5: _parse_iso_date → _parse_iso
+                            pub_date = _parse_iso(raw) or _parse_vn_date(raw)
                     hrefs_dates.append((href, pub_date))
 
         if not hrefs_dates:
@@ -572,16 +568,17 @@ def crawl_suckhoedoisong(keyword: str, max_pages: int = 5) -> list[dict]:
             print(f"  [SKDS] Hết trang {page}")
             break
 
-        for href in set(hrefs):
+        # FIX Bug 1: dùng hrefs_dates thay vì biến 'hrefs' không tồn tại
+        for href, pub_date in hrefs_dates:
             results.append(
                 {
                     "url": href.strip(),
                     "source_name": "Sức khỏe & Đời sống",
-                    "published_at": _parse_date_from_url(href),
+                    "published_at": pub_date or _parse_date_from_url(href),
                 }
             )
 
-        print(f"  [SKDS] Trang {page}: {len(hrefs)} links")
+        print(f"  [SKDS] Trang {page}: {len(hrefs_dates)} links")
         time.sleep(0.6)
 
     return results
@@ -589,6 +586,7 @@ def crawl_suckhoedoisong(keyword: str, max_pages: int = 5) -> list[dict]:
 
 # ============================================================
 # 4. NÔNG NGHIỆP VIỆT NAM
+# FIX Bug 2: thay 'hrefs' → 'hrefs_dates'; Bug 5: _parse_iso_date → _parse_iso
 # ============================================================
 def crawl_nongnghiep(keyword: str, max_pages: int = 5) -> list[dict]:
     results = []
@@ -630,7 +628,8 @@ def crawl_nongnghiep(keyword: str, max_pages: int = 5) -> list[dict]:
             t = item.select_one("time, .story__time, .date, .post-date")
             if t:
                 raw = t.get("datetime") or t.get_text(strip=True)
-                pub_date = _parse_iso_date(raw)
+                # FIX Bug 5: _parse_iso_date → _parse_iso
+                pub_date = _parse_iso(raw) or _parse_vn_date(raw)
 
             hrefs_dates.append((href, pub_date))
 
@@ -647,16 +646,17 @@ def crawl_nongnghiep(keyword: str, max_pages: int = 5) -> list[dict]:
             print(f"  [NongNghiep] Hết trang {page}")
             break
 
-        for href in set(hrefs):
+        # FIX Bug 2: dùng hrefs_dates thay vì biến 'hrefs' không tồn tại
+        for href, pub_date in hrefs_dates:
             results.append(
                 {
                     "url": href.strip(),
                     "source_name": "Nông nghiệp Việt Nam",
-                    "published_at": _parse_date_from_url(href),
+                    "published_at": pub_date or _parse_date_from_url(href),
                 }
             )
 
-        print(f"  [NongNghiep] Trang {page}: {len(hrefs)} links")
+        print(f"  [NongNghiep] Trang {page}: {len(hrefs_dates)} links")
         time.sleep(0.6)
 
     return results
@@ -731,6 +731,7 @@ def crawl_nguoichannuoi(keyword: str, max_pages: int = 4) -> list[dict]:
 
 # ============================================================
 # 6. CỤC THÚ Y
+# FIX Bug 3: 'items' không tồn tại → dùng 'links'
 # ============================================================
 def crawl_thuy(keyword: str = "", max_pages: int = 3) -> list[dict]:
     results = []
@@ -751,16 +752,14 @@ def crawl_thuy(keyword: str = "", max_pages: int = 3) -> list[dict]:
                 if not html:
                     break
                 soup = BeautifulSoup(html, "html.parser")
+                # FIX Bug 3: biến tên nhất quán là 'links'
                 links = (
                     soup.select(".views-row a")
                     or soup.select("article h3 a")
                     or soup.select(".field-content a")
                 )
                 found = 0
-                for item in items:
-                    a = item.select_one("a") if item.name != "a" else item
-                    if not a:
-                        continue
+                for a in links:  # FIX Bug 3: dùng 'links', không phải 'items'
                     href = a.get("href", "")
                     if href.startswith("/"):
                         href = BASE + href
@@ -783,6 +782,7 @@ def crawl_thuy(keyword: str = "", max_pages: int = 3) -> list[dict]:
 
 # ============================================================
 # 7. CỤC BẢO VỆ THỰC VẬT
+# FIX Bug 4: 'items' không tồn tại → dùng 'links'
 # ============================================================
 def crawl_cucbvtv(keyword: str = "", max_pages: int = 3) -> list[dict]:
     results = []
@@ -803,16 +803,14 @@ def crawl_cucbvtv(keyword: str = "", max_pages: int = 3) -> list[dict]:
                 if not html:
                     break
                 soup = BeautifulSoup(html, "html.parser")
+                # FIX Bug 4: biến tên nhất quán là 'links'
                 links = (
                     soup.select(".views-row a")
                     or soup.select("article h3 a")
                     or soup.select("h3.title a")
                 )
                 found = 0
-                for item in items:
-                    a = item.select_one("a") if item.name != "a" else item
-                    if not a:
-                        continue
+                for a in links:  # FIX Bug 4: dùng 'links', không phải 'items'
                     href = a.get("href", "")
                     if href.startswith("/"):
                         href = BASE + href
@@ -967,21 +965,18 @@ def get_content(url: str) -> tuple[str | None, str | None, str | None]:
         title = (art.title or "").strip()
         content = (art.text or "").strip()
 
-        # newspaper3k có art.publish_date
         if art.publish_date:
             try:
                 pub_date = art.publish_date.strftime("%Y-%m-%d %H:%M:%S")
             except Exception:
                 pass
 
-        # Nếu chưa có date, thử parse từ HTML raw
         if not pub_date and art.html:
             pub_date = extract_date_from_html(art.html, url)
 
         if title and len(content) >= 200:
             return title, content, pub_date
 
-        # Giữ lại HTML để dùng cho fallback
         html_text = art.html
 
     except Exception:
@@ -1023,10 +1018,8 @@ def fallback_get_content(
 
         title = soup.title.string.strip() if soup.title else ""
 
-        # Parse date từ HTML
         pub_date = extract_date_from_html(html, url)
 
-        # Domain-specific content selector
         content_text = ""
         for d, sel in _DOMAIN_CONTENT_SELECTORS.items():
             if d in domain:
@@ -1073,7 +1066,6 @@ def get_contents_parallel(
             title, content, pub_from_html = get_content(url)
             item["title"] = title
             item["content"] = content
-            # Ưu tiên date từ HTML (chuẩn hơn) nếu có, không thì giữ từ list page
             if pub_from_html:
                 item["published_at"] = pub_from_html
             elif not item.get("published_at"):
