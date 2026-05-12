@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { X, Tag, TrendingUp, FileText, AlertTriangle, Activity } from "lucide-react";
 import {
   BarChart, Bar, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
 import FloatingChat from "../../components/FloatingChat/FloatingChat";
 import "./AnalyticsContent.css";
@@ -29,6 +29,11 @@ const fmtDate = (d) => {
   return `${fmt2(dt.getDate())}/${fmt2(dt.getMonth() + 1)}`;
 };
 
+const fmtHour = (h) => {
+  if (h === undefined || h === null) return "";
+  return `${fmt2(h)}:00`;
+};
+
 const fmtDateFull = (d) => {
   if (!d) return "";
   const dt = new Date(d);
@@ -51,7 +56,22 @@ const hostname = (url) => {
   catch { return null; }
 };
 
-// ── Sub-components ────────────────────────────────────────
+// ── Tooltips ──────────────────────────────────────────────
+const HourTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="ac-tooltip">
+      <p className="ac-tooltip-label">{fmtHour(label)}</p>
+      {payload.map((p, i) => (
+        <p key={i} className="ac-tooltip-item" style={{ color: p.color }}>
+          <span className="ac-tooltip-dot" style={{ background: p.color }} />
+          {p.name}: <strong>{p.value}</strong>
+        </p>
+      ))}
+    </div>
+  );
+};
+
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
@@ -67,6 +87,21 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
+const HBarTooltip = ({ active, payload }) => {
+  if (!active || !payload?.length) return null;
+  const p = payload[0];
+  return (
+    <div className="ac-tooltip">
+      <p className="ac-tooltip-label">{p.payload.name}</p>
+      <p className="ac-tooltip-item" style={{ color: p.fill }}>
+        <span className="ac-tooltip-dot" style={{ background: p.fill }} />
+        Số bài: <strong>{p.value}</strong>
+      </p>
+    </div>
+  );
+};
+
+// ── Sub-components ────────────────────────────────────────
 const StatCard = ({ icon: Icon, label, value, sub, color }) => (
   <div className="ac-stat-card">
     <div className="ac-stat-icon" style={{ background: `${color}18`, color }}>
@@ -122,12 +157,14 @@ const KeywordsModal = ({ keywords, onClose }) => {
   );
 };
 
-const BarLabel = ({ x, y, width, value }) =>
-  value ? (
-    <text x={x + width / 2} y={y - 4} textAnchor="middle" fill="#94a3b8" fontSize={10}>
+const BarLabel = ({ x, y, width, value }) => {
+  if (!value || width < 20) return null;
+  return (
+    <text x={x + width / 2} y={y - 5} textAnchor="middle" fill="#94a3b8" fontSize={10}>
       {value}
     </text>
-  ) : null;
+  );
+};
 
 // ── Analytics computation ─────────────────────────────────
 const computeAnalytics = (articles, timeRange) => {
@@ -139,17 +176,13 @@ const computeAnalytics = (articles, timeRange) => {
     return d && d >= cutoff;
   });
 
-  // Disease frequency maps
-  const countBy = (arr, key) =>
-    arr.reduce((acc, a) => {
-      if (a[key]) acc[a[key]] = (acc[a[key]] || 0) + 1;
-      return acc;
-    }, {});
-
-  const diseaseCounts = countBy(articles, "disease_name");
-  const topEntries = Object.entries(diseaseCounts).sort((a, b) => b[1] - a[1]);
-
   const uniqueSources = new Set(articles.map((a) => hostname(a.url)).filter(Boolean)).size;
+
+  const diseaseCounts = {};
+  articles.forEach((a) => {
+    if (a.disease_name) diseaseCounts[a.disease_name] = (diseaseCounts[a.disease_name] || 0) + 1;
+  });
+  const topEntries = Object.entries(diseaseCounts).sort((a, b) => b[1] - a[1]);
 
   const stats = {
     total_articles: articles.length,
@@ -159,12 +192,23 @@ const computeAnalytics = (articles, timeRange) => {
     top_keyword_count: topEntries[0]?.[1] || 0,
   };
 
-  // Daily counts
-  const dayMap = countBy(
-    inRange.filter((a) => parseDate(a.processed_at)),
-    (a) => dateKey(parseDate(a.processed_at)),
-  );
-  // Note: countBy expects (arr, key-string), rewrite for derived key:
+  // ── 24H: group by HOUR (24 slots) ──────────────────────
+  let hourlyData = null;
+  if (timeRange === 1) {
+    const hourMap = {};
+    inRange.forEach((a) => {
+      const d = parseDate(a.processed_at);
+      if (!d) return;
+      const h = d.getHours();
+      hourMap[h] = (hourMap[h] || 0) + 1;
+    });
+    hourlyData = Array.from({ length: 24 }, (_, h) => ({
+      hour: h,
+      count: hourMap[h] || 0,
+    }));
+  }
+
+  // ── Daily counts (dùng cho 7/30 ngày) ─────────────────
   const dayMapActual = {};
   inRange.forEach((a) => {
     const d = parseDate(a.processed_at);
@@ -182,7 +226,7 @@ const computeAnalytics = (articles, timeRange) => {
     return { date: k, count: dayMapActual[k] || 0 };
   });
 
-  // Top diseases in range
+  // Top diseases trong kỳ
   const rangeDiseases = {};
   inRange.forEach((a) => {
     if (a.disease_name) rangeDiseases[a.disease_name] = (rangeDiseases[a.disease_name] || 0) + 1;
@@ -192,9 +236,16 @@ const computeAnalytics = (articles, timeRange) => {
     .slice(0, 10)
     .map(([keyword, count]) => ({ keyword, count }));
 
+  // Horizontal bar data cho 24H (top 7)
+  const hbarData = topKeywords.slice(0, 7).map((kw, idx) => ({
+    name: kw.keyword,
+    count: kw.count,
+    color: PALETTE[idx % PALETTE.length],
+  }));
+
   const top3 = topKeywords.slice(0, 3).map((k) => k.keyword);
 
-  // Line chart data
+  // Line chart data (7/30 ngày)
   const lineMap = {};
   inRange.forEach((a) => {
     if (!a.disease_name || !top3.includes(a.disease_name)) return;
@@ -213,7 +264,16 @@ const computeAnalytics = (articles, timeRange) => {
 
   return {
     stats,
-    analytics: { in_range: inRange.length, daily_counts: allDays, top_keywords: topKeywords, top3, line_data: lineData, risk_score: riskScore },
+    analytics: {
+      in_range: inRange.length,
+      daily_counts: allDays,
+      hourly_counts: hourlyData,
+      hbar_data: hbarData,
+      top_keywords: topKeywords,
+      top3,
+      line_data: lineData,
+      risk_score: riskScore,
+    },
   };
 };
 
@@ -233,7 +293,10 @@ const AnalyticsContent = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  const { stats, analytics } = useMemo(() => computeAnalytics(articles, timeRange), [articles, timeRange]);
+  const { stats, analytics } = useMemo(
+    () => computeAnalytics(articles, timeRange),
+    [articles, timeRange],
+  );
 
   const riskInfo = useMemo(() => {
     const score = analytics?.risk_score ?? 0;
@@ -243,6 +306,7 @@ const AnalyticsContent = () => {
   }, [analytics?.risk_score]);
 
   const timeLabel = timeRange === 1 ? "24 giờ qua" : `${timeRange} ngày qua`;
+  const is24H = timeRange === 1;
 
   const forecastRows = useMemo(
     () =>
@@ -255,10 +319,28 @@ const AnalyticsContent = () => {
     [analytics],
   );
 
+  const hasBarData = is24H
+    ? analytics?.hourly_counts?.some((d) => d.count > 0)
+    : analytics?.daily_counts?.some((d) => d.count > 0);
+
+  const hasLineData =
+    !is24H &&
+    analytics?.line_data?.length > 0 &&
+    analytics?.top3?.length > 0 &&
+    analytics.line_data.some((d) => analytics.top3.some((k) => d[k] > 0));
+
+  const hasHbarData = is24H && (analytics?.hbar_data || []).length > 0;
+
+  // Chiều cao horizontal bar chart tự điều chỉnh theo số bệnh
+  const hbarHeight = Math.max(180, (analytics?.hbar_data?.length || 0) * 42 + 24);
+
   return (
     <div className="ac-body">
       {showKeywords && (
-        <KeywordsModal keywords={analytics?.top_keywords || []} onClose={() => setShowKeywords(false)} />
+        <KeywordsModal
+          keywords={analytics?.top_keywords || []}
+          onClose={() => setShowKeywords(false)}
+        />
       )}
 
       {/* Header */}
@@ -286,66 +368,230 @@ const AnalyticsContent = () => {
 
       {/* Stat cards */}
       <div className="ac-stats-row">
-        <StatCard icon={FileText} label="Bài trong kỳ" value={loading ? "…" : (analytics?.in_range ?? 0)} sub={timeLabel} color="#6366f1" />
-        <StatCard icon={Activity} label="Tổng bài báo" value={loading ? "…" : (stats?.total_articles ?? 0)} sub="Đã thu thập" color="#10b981" />
-        <StatCard icon={TrendingUp} label="Loại bệnh" value={loading ? "…" : (analytics?.top_keywords?.length ?? 0)} sub={`Trong ${timeLabel}`} color="#f59e0b" />
-        <StatCard icon={AlertTriangle} label="Mức độ rủi ro" value={loading ? "…" : riskInfo.text} sub={`${analytics?.risk_score ?? 0}% tỷ lệ bài mới`} color={riskInfo.color} />
+        <StatCard
+          icon={FileText}
+          label="Bài trong kỳ"
+          value={loading ? "…" : (analytics?.in_range ?? 0)}
+          sub={timeLabel}
+          color="#6366f1"
+        />
+        <StatCard
+          icon={Activity}
+          label="Tổng bài báo"
+          value={loading ? "…" : (stats?.total_articles ?? 0)}
+          sub="Đã thu thập"
+          color="#10b981"
+        />
+        <StatCard
+          icon={TrendingUp}
+          label="Loại bệnh"
+          value={loading ? "…" : (analytics?.top_keywords?.length ?? 0)}
+          sub={`Trong ${timeLabel}`}
+          color="#f59e0b"
+        />
+        <StatCard
+          icon={AlertTriangle}
+          label="Mức độ rủi ro"
+          value={loading ? "…" : riskInfo.text}
+          sub={`${analytics?.risk_score ?? 0}% tỷ lệ bài mới`}
+          color={riskInfo.color}
+        />
       </div>
 
       {/* Main grid */}
       <div className="ac-grid">
-        {/* Charts column */}
         <div className="ac-col-main">
+
+          {/* Chart 1: theo giờ (24H) hoặc theo ngày (7/30) */}
           <div className="ac-panel">
             <div className="ac-panel-header">
-              <h3>Số bài cào được theo ngày</h3>
+              <h3>{is24H ? "Số bài cào được theo giờ" : "Số bài cào được theo ngày"}</h3>
               <span className="ac-panel-meta">{timeLabel}</span>
             </div>
             {loading ? (
               <div className="ac-skeleton" style={{ height: 220 }} />
-            ) : analytics?.daily_counts?.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={analytics.daily_counts} margin={{ top: 20, right: 8, left: -24, bottom: 0 }} barSize={timeRange === 1 ? 40 : timeRange === 7 ? 28 : 12}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                  <XAxis dataKey="date" stroke="#4b5563" tick={{ fill: "#6b7280", fontSize: 11 }} tickFormatter={fmtDate} axisLine={false} tickLine={false} />
-                  <YAxis stroke="#4b5563" tick={{ fill: "#6b7280", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-                  <Bar dataKey="count" name="Bài báo" fill="#6366f1" radius={[4, 4, 0, 0]} label={timeRange <= 7 ? <BarLabel /> : false} />
-                </BarChart>
-              </ResponsiveContainer>
+            ) : hasBarData ? (
+              is24H ? (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart
+                    data={analytics.hourly_counts}
+                    margin={{ top: 12, right: 8, left: -20, bottom: 0 }}
+                    barSize={16}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                    <XAxis
+                      dataKey="hour"
+                      stroke="#4b5563"
+                      tick={{ fill: "#6b7280", fontSize: 10 }}
+                      tickFormatter={fmtHour}
+                      axisLine={false}
+                      tickLine={false}
+                      interval={2}
+                    />
+                    <YAxis
+                      stroke="#4b5563"
+                      tick={{ fill: "#6b7280", fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      allowDecimals={false}
+                      width={28}
+                    />
+                    <Tooltip content={<HourTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                    <Bar dataKey="count" name="Bài báo" radius={[4, 4, 0, 0]}>
+                      {analytics.hourly_counts.map((entry, idx) => (
+                        <Cell key={idx} fill={entry.count > 0 ? "#6366f1" : "rgba(99,102,241,0.15)"} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart
+                    data={analytics.daily_counts}
+                    margin={{ top: timeRange === 7 ? 24 : 12, right: 8, left: -20, bottom: 0 }}
+                    barSize={timeRange === 7 ? 32 : 8}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      stroke="#4b5563"
+                      tick={{ fill: "#6b7280", fontSize: 11 }}
+                      tickFormatter={fmtDate}
+                      axisLine={false}
+                      tickLine={false}
+                      interval={timeRange === 30 ? 4 : 0}
+                    />
+                    <YAxis
+                      stroke="#4b5563"
+                      tick={{ fill: "#6b7280", fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      allowDecimals={false}
+                      width={28}
+                    />
+                    <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                    <Bar
+                      dataKey="count"
+                      name="Bài báo"
+                      fill="#6366f1"
+                      radius={[4, 4, 0, 0]}
+                      label={timeRange === 7 ? <BarLabel /> : false}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )
             ) : (
               <div className="ac-empty-chart">Không có dữ liệu trong khoảng này</div>
             )}
           </div>
 
+          {/* Chart 2: Horizontal bar (24H) hoặc Line chart (7/30) */}
           <div className="ac-panel">
             <div className="ac-panel-header">
-              <h3>Top bệnh theo ngày</h3>
-              <div className="ac-legend">
-                {(analytics?.top3 || []).map((kw, i) => (
-                  <span key={i} className="ac-legend-item">
-                    <span className="ac-legend-dot" style={{ background: PALETTE[i] }} />
-                    {kw}
-                  </span>
-                ))}
-              </div>
+              <h3>{is24H ? "Phân bố bệnh trong 24 giờ" : "Top bệnh theo ngày"}</h3>
+              {!is24H && (
+                <div className="ac-legend">
+                  {(analytics?.top3 || []).map((kw, i) => (
+                    <span key={i} className="ac-legend-item">
+                      <span className="ac-legend-dot" style={{ background: PALETTE[i] }} />
+                      {kw}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
+
             {loading ? (
-              <div className="ac-skeleton" style={{ height: 200 }} />
-            ) : analytics?.line_data?.length > 0 && analytics?.top3?.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={analytics.line_data} margin={{ top: 10, right: 8, left: -24, bottom: 0 }}>
+              <div className="ac-skeleton" style={{ height: 220 }} />
+            ) : is24H ? (
+              hasHbarData ? (
+                <ResponsiveContainer width="100%" height={hbarHeight}>
+                  <BarChart
+                    data={analytics.hbar_data}
+                    layout="vertical"
+                    margin={{ top: 4, right: 48, left: 8, bottom: 4 }}
+                    barSize={18}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
+                    <XAxis
+                      type="number"
+                      stroke="#4b5563"
+                      tick={{ fill: "#6b7280", fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      allowDecimals={false}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      stroke="#4b5563"
+                      tick={{ fill: "#cbd5e1", fontSize: 12 }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={165}
+                    />
+                    <Tooltip content={<HBarTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+                    <Bar
+                      dataKey="count"
+                      name="Bài báo"
+                      radius={[0, 4, 4, 0]}
+                      label={{ position: "right", fill: "#94a3b8", fontSize: 11, formatter: (v) => v }}
+                    >
+                      {analytics.hbar_data.map((entry, idx) => (
+                        <Cell key={idx} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="ac-empty-chart">Không có dữ liệu bệnh trong 24 giờ này</div>
+              )
+            ) : hasLineData ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart
+                  data={analytics.line_data}
+                  margin={{ top: 10, right: 12, left: -20, bottom: 0 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                  <XAxis dataKey="date" stroke="#4b5563" tick={{ fill: "#6b7280", fontSize: 11 }} tickFormatter={fmtDate} axisLine={false} tickLine={false} />
-                  <YAxis stroke="#4b5563" tick={{ fill: "#6b7280", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <XAxis
+                    dataKey="date"
+                    stroke="#4b5563"
+                    tick={{ fill: "#6b7280", fontSize: 11 }}
+                    tickFormatter={fmtDate}
+                    axisLine={false}
+                    tickLine={false}
+                    interval={timeRange === 30 ? 4 : 0}
+                  />
+                  <YAxis
+                    stroke="#4b5563"
+                    tick={{ fill: "#6b7280", fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                    width={28}
+                  />
                   <Tooltip content={<CustomTooltip />} />
                   {analytics.top3.map((kw, i) => (
-                    <Line key={kw} type="monotone" dataKey={kw} stroke={PALETTE[i]} strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+                    <Line
+                      key={kw}
+                      type="monotone"
+                      dataKey={kw}
+                      name={kw}
+                      stroke={PALETTE[i]}
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 4, strokeWidth: 0 }}
+                      connectNulls={false}
+                    />
                   ))}
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="ac-empty-chart">Không đủ dữ liệu để vẽ biểu đồ</div>
+              <div className="ac-empty-chart">
+                {analytics?.top3?.length === 0
+                  ? "Không có bệnh nào trong khoảng này"
+                  : "Không đủ dữ liệu để vẽ biểu đồ"}
+              </div>
             )}
           </div>
         </div>
@@ -363,9 +609,11 @@ const AnalyticsContent = () => {
               <p className="ac-empty">Không có dữ liệu</p>
             ) : (
               <div className="ac-rankings">
-                {(analytics.top_keywords).slice(0, 6).map((kw, idx) => {
+                {analytics.top_keywords.slice(0, 6).map((kw, idx) => {
                   const color = PALETTE[idx % PALETTE.length];
-                  const pct = Math.round((kw.count / Math.max(analytics.top_keywords[0].count, 1)) * 100);
+                  const pct = Math.round(
+                    (kw.count / Math.max(analytics.top_keywords[0].count, 1)) * 100,
+                  );
                   return (
                     <div key={idx} className="ac-rank-item">
                       <div className="ac-rank-top">

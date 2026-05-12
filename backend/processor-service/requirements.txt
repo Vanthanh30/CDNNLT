@@ -1,1 +1,5 @@
 mysql-connector-python
+openai
+python-dotenv
+
+apscheduler          

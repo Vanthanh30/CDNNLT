@@ -394,6 +394,29 @@ RECOVERED_PATTERNS = [
     r"(\d[\d\.]*)\s*(?:ca\s+)?(?:khỏi bệnh|bình phục|xuất viện|hồi phục)",
 ]
 
+CASE_CUMULATIVE_CONTEXT = [
+    "lũy kế", "cộng dồn", "từ đầu năm", "từ đầu mùa", "từ đầu dịch",
+    "trong năm", "năm nay", "cả năm", "hằng năm", "mỗi năm",
+    "so với cùng kỳ", "cùng kỳ", "toàn quốc", "cả nước",
+]
+
+DISEASE_WEEKLY_CASE_CAPS = {
+    "Sốt xuất huyết": 5000,
+    "Sốt xuất huyết Dengue": 5000,
+    "Tay chân miệng": 5000,
+    "COVID-19": 10000,
+    "Cúm A": 10000,
+    "Cúm B": 10000,
+    "Cúm mùa": 10000,
+    "Sởi": 5000,
+}
+
+GROUP_WEEKLY_CASE_CAPS = {
+    "human": 10000,
+    "animal": 100000,
+    "plant": 100000,
+}
+
 
 def _parse_num(s: str) -> int:
     try:
@@ -402,13 +425,30 @@ def _parse_num(s: str) -> int:
         return 0
 
 
-def extract_cases(text: str) -> int:
+def _has_cumulative_context(text: str, match) -> bool:
+    start = max(0, match.start() - 100)
+    end = min(len(text), match.end() + 100)
+    context = text[start:end]
+    return any(term in context for term in CASE_CUMULATIVE_CONTEXT)
+
+
+def _case_cap_for(disease_name: str, group: str) -> int:
+    if disease_name in DISEASE_WEEKLY_CASE_CAPS:
+        return DISEASE_WEEKLY_CASE_CAPS[disease_name]
+    return GROUP_WEEKLY_CASE_CAPS.get(group or "human", 10000)
+
+
+def extract_cases(text: str, disease_name: str = "Không xác định", group: str = "human") -> int:
     t = normalize(text)
+    cap = _case_cap_for(disease_name, group)
+
     for p in CASE_PATTERNS:
         m = re.search(p, t)
         if m:
+            if _has_cumulative_context(t, m):
+                continue
             v = _parse_num(m.group(1))
-            if 0 < v < 10_000_000:
+            if 0 < v <= cap:
                 return v
     return 0
 
@@ -493,14 +533,14 @@ def classify_risk(text: str, cases: int = 0, dead: int = 0) -> str:
 
 def extract_info(title: str, content: str) -> dict:
     full_text = f"{title or ''}. {content or ''}"
-    cases     = extract_cases(full_text)
+    group     = classify_group(full_text)
+    disease   = detect_disease(full_text)
+    cases     = extract_cases(full_text, disease, group)
     dead      = extract_dead(full_text)
     recovered = extract_recovered(full_text)
-    group     = classify_group(full_text)
     risk      = classify_risk(full_text, cases, dead)
     location  = detect_location(full_text)
     all_locs  = detect_all_locations(full_text)
-    disease   = detect_disease(full_text)
 
     return {
         "keywords":        detect_keywords(full_text),
