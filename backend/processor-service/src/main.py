@@ -45,9 +45,13 @@ def make_summary(title: str, content: str, max_len: int = 500) -> str:
     return summary.strip()
 
 
-def parse_event_date(published_at) -> str | None:
-    if not published_at:
-        return datetime.now().strftime("%Y-%m-%d")
+def parse_event_date(published_at, title: str = "", content: str = "") -> str | None:
+    """
+    Return the most reliable article/event date we can infer.
+
+    Do not fall back to crawl/processing date. That would collapse many articles
+    into one artificial spike and make forecasting misleading.
+    """
     if isinstance(published_at, datetime):
         return published_at.strftime("%Y-%m-%d")
     if isinstance(published_at, str):
@@ -56,7 +60,29 @@ def parse_event_date(published_at) -> str | None:
                 return datetime.strptime(published_at, fmt).strftime("%Y-%m-%d")
             except ValueError:
                 continue
-    return datetime.now().strftime("%Y-%m-%d")
+
+    text = f"{title or ''}\n{content or ''}"[:2500]
+    date_patterns = [
+        (r"\b(\d{1,2})[/-](\d{1,2})[/-](20\d{2})\b", "%d/%m/%Y"),
+        (r"\b(20\d{2})[/-](\d{1,2})[/-](\d{1,2})\b", "%Y/%m/%d"),
+        (r"ngày\s+(\d{1,2})\s+tháng\s+(\d{1,2})\s+năm\s+(20\d{2})", "%d/%m/%Y"),
+    ]
+
+    for pattern, fmt in date_patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if not match:
+            continue
+
+        parts = match.groups()
+        raw_date = "/".join(parts)
+        try:
+            parsed = datetime.strptime(raw_date, fmt)
+            if 2020 <= parsed.year <= datetime.now().year:
+                return parsed.strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+
+    return None
 
 
 # ========================
@@ -110,7 +136,7 @@ def process_batch(limit: int = 20):
 
             content_clean = clean_content(content)
             summary       = make_summary(title, content_clean)
-            event_date    = parse_event_date(art.get("published_at"))
+            event_date    = parse_event_date(art.get("published_at"), title, content_clean)
 
             # ── GUARD: chỉ lưu đầy đủ khi cả disease VÀ location hợp lệ ──
             if not result["disease_valid"] or not result["location_valid"]:
