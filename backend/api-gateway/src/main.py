@@ -1,5 +1,10 @@
 from datetime import date, datetime, timedelta
 import sys
+import json
+import os
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Optional
 from pydantic import BaseModel
@@ -16,6 +21,7 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 REPORT_SERVICE_DIR = BASE_DIR / "report-service"
 
 load_dotenv(REPORT_SERVICE_DIR / ".env")
+FORECAST_SERVICE_URL = os.getenv("FORECAST_SERVICE_URL", "http://localhost:8010")
 
 CHATBOT_SERVICE_URL = "http://localhost:8001/chat"
 
@@ -277,6 +283,67 @@ def download_weekly_report():
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@app.get("/api/forecast")
+def get_forecast(
+    disease_name: Optional[str] = None,
+    location: Optional[str] = None,
+    days: int = 14,
+    history_days: int = 180,
+):
+    params = {
+        "days": str(days),
+        "history_days": str(history_days),
+    }
+    if disease_name:
+        params["disease_name"] = disease_name
+    if location:
+        params["location"] = location
+
+    query = urllib.parse.urlencode(params)
+    url = f"{FORECAST_SERVICE_URL.rstrip('/')}/forecast?{query}"
+
+    try:
+        with urllib.request.urlopen(url, timeout=30) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise HTTPException(status_code=exc.code, detail=detail)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503, detail=f"Forecast service unavailable: {exc}"
+        )
+
+
+@app.get("/api/forecast/diseases")
+def get_disease_forecasts(
+    location: Optional[str] = None,
+    history_days: int = 180,
+    limit: int = 12,
+    top_n: int = 3,
+):
+    params = {
+        "history_days": str(history_days),
+        "limit": str(limit),
+        "top_n": str(top_n),
+    }
+    if location:
+        params["location"] = location
+
+    query = urllib.parse.urlencode(params)
+    url = f"{FORECAST_SERVICE_URL.rstrip('/')}/forecast/diseases?{query}"
+
+    try:
+        with urllib.request.urlopen(url, timeout=60) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise HTTPException(status_code=exc.code, detail=detail)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503, detail=f"Forecast service unavailable: {exc}"
+        )
 
 
 def serialize_rows(rows):
