@@ -473,3 +473,148 @@ def filter_articles(
     conn.close()
 
     return rows
+
+
+def extract_keywords(question: str):
+    q = question.lower()
+
+    disease = None
+    location = None
+
+    conn = get_connection()
+
+    if not conn:
+        return None, None
+
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute("SELECT name FROM DISEASE")
+    diseases = [d["name"].lower() for d in cursor.fetchall()]
+
+    cursor.execute("SELECT name FROM REGION")
+    regions = [r["name"].lower() for r in cursor.fetchall()]
+
+    cursor.close()
+    conn.close()
+
+    for d in diseases:
+        if d in q:
+            disease = d
+            break
+
+    for r in regions:
+        if r in q:
+            location = r
+            break
+
+    return disease, location
+
+
+def search_chatbot_context(question: str, limit: int = 5):
+    conn = get_connection()
+
+    if not conn:
+        return []
+
+    cursor = conn.cursor(dictionary=True)
+
+    disease, location = extract_keywords(question)
+
+    query = """
+        SELECT
+            r.title,
+            r.url,
+            a.summary,
+            a.content_clean,
+            d.name AS disease_name,
+            rg.name AS location,
+            de.event_date,
+            de.risk_level,
+            s.cases_infected,
+            s.cases_dead,
+            s.cases_recovered
+        FROM ARTICLE a
+        JOIN RAW_ARTICLE r ON a.raw_article_id = r.id
+        LEFT JOIN DISEASE_EVENT de ON de.article_id = a.id
+        LEFT JOIN DISEASE d ON de.disease_id = d.id
+        LEFT JOIN REGION rg ON de.region_id = rg.id
+        LEFT JOIN STATIC s ON s.event_id = de.id
+        WHERE 1 = 1
+    """
+
+    params = []
+
+    if disease:
+        query += " AND d.name LIKE %s"
+        params.append(f"%{disease}%")
+
+    if location:
+        query += " AND rg.name LIKE %s"
+        params.append(f"%{location}%")
+
+    if not disease and not location:
+        like = f"%{question}%"
+
+        query += """
+            AND (
+                r.title LIKE %s
+                OR a.summary LIKE %s
+            )
+        """
+
+        params.extend([like, like])
+
+    query += " ORDER BY a.processed_at DESC LIMIT %s"
+
+    params.append(limit)
+
+    cursor.execute(query, tuple(params))
+
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return rows
+
+
+def generate_chatbot_answer(question: str):
+    rows = search_chatbot_context(question, limit=5)
+
+    if not rows:
+        return {"answer": "Không tìm thấy dữ liệu phù hợp.", "sources": []}
+
+    result = {}
+
+    for row in rows:
+        disease = row.get("disease_name") or "Không xác định"
+        location = row.get("location") or "Không xác định"
+
+        if disease not in result:
+            result[disease] = []
+
+        result[disease].append(location)
+
+    answer_parts = []
+
+    for disease, locations in result.items():
+        unique_locations = list(set(locations))
+
+        answer_parts.append(
+            f"Dịch bệnh '{disease}' xuất hiện tại: {', '.join(unique_locations)}"
+        )
+
+    sources = []
+
+    for row in rows:
+        sources.append(
+            {
+                "title": row.get("title"),
+                "url": row.get("url"),
+                "disease_name": row.get("disease_name"),
+                "location": row.get("location"),
+                "risk_level": row.get("risk_level"),
+            }
+        )
+
+    return {"answer": "\n".join(answer_parts), "sources": sources}
