@@ -1,3 +1,4 @@
+from typing import Optional, List, Dict, Any
 from fastapi import FastAPI
 from pydantic import BaseModel
 from src.ai_service import generate_answer
@@ -7,6 +8,7 @@ app = FastAPI(title="Chatbot Service")
 
 class ChatRequest(BaseModel):
     question: str
+    context: Optional[List[Dict[str, Any]]] = []
 
 
 @app.get("/")
@@ -17,5 +19,8 @@ def root():
 @app.post("/chat")
 def chat(req: ChatRequest):
     return {
-        "answer": generate_answer(req.question)
+        "answer": generate_answer(
+            question=req.question,
+            rows=req.context or []
+        )
     }

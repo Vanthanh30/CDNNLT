@@ -24,6 +24,7 @@ load_dotenv(REPORT_SERVICE_DIR / ".env")
 FORECAST_SERVICE_URL = os.getenv("FORECAST_SERVICE_URL", "http://localhost:8010")
 
 CHATBOT_SERVICE_URL = "http://localhost:8001/chat"
+CHATBOT_SERVICE_URL = "http://localhost:8001/chat"
 
 app = FastAPI(title="Disease Management API")
 
@@ -394,7 +395,7 @@ def call_chatbot_service(question, rows):
         if response.status_code == 200:
             return response.json().get("answer")
 
-        return "Chatbot service lỗi."
+        return "Chatbot service đang lỗi."
 
     except Exception as e:
         print("❌ Lỗi gọi chatbot-service:", e)
