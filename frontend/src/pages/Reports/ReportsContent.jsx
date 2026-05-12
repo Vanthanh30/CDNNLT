@@ -32,11 +32,6 @@ const ReportsContent = () => {
         />
 
         <ReportRightPanel
-          articlesCount={articles.length}
-          chartData={reportData.chartData}
-          factors={reportData.factors}
-          insights={reportData.insights}
-          latestArticle={latestArticle}
           handleDownload={handleDownload}
         />
       </div>
@@ -48,11 +43,11 @@ const ReportsContent = () => {
           top_keywords:
             chatStats.top_keyword !== "N/A"
               ? [
-                  {
-                    keyword: chatStats.top_keyword,
-                    count: chatStats.top_keyword_count,
-                  },
-                ]
+                {
+                  keyword: chatStats.top_keyword,
+                  count: chatStats.top_keyword_count,
+                },
+              ]
               : [],
         }}
       />
