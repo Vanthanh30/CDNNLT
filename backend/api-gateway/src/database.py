@@ -436,17 +436,8 @@ def filter_articles(
                 OR a.content_clean LIKE %s
             )
         """
-
         like_keyword = f"%{keyword}%"
-
-        params.extend(
-            [
-                like_keyword,
-                like_keyword,
-                like_keyword,
-                like_keyword,
-            ]
-        )
+        params.extend([like_keyword, like_keyword, like_keyword, like_keyword])
 
     if disease_name:
         query += " AND d.name LIKE %s"
@@ -456,12 +447,13 @@ def filter_articles(
         query += " AND rg.name LIKE %s"
         params.append(f"%{location}%")
 
+    # ✅ Fix: lọc theo processed_at thay vì event_date (event_date có thể null)
     if from_date:
-        query += " AND DATE(de.event_date) >= %s"
+        query += " AND DATE(a.processed_at) >= %s"
         params.append(from_date)
 
     if to_date:
-        query += " AND DATE(de.event_date) <= %s"
+        query += " AND DATE(a.processed_at) <= %s"
         params.append(to_date)
 
     if risk_level:

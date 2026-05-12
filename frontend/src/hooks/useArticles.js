@@ -1,6 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
 import { articleService } from "../services/api";
 
+// Helper: tính from_date string (YYYY-MM-DD) từ filter range
+const getRangeDateParam = (range) => {
+  if (range === "Tất Cả") return null;
+  const days = range === "7 Ngày Qua" ? 7 : 30;
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  // Format YYYY-MM-DD cho backend
+  return d.toISOString().split("T")[0];
+};
+
 export const useArticles = () => {
   const [articles, setArticles] = useState([]);
   const [filteredArticles, setFilteredArticles] = useState([]);
@@ -17,10 +27,11 @@ export const useArticles = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const articlesPerPage = 5;
 
-  const fetchArticles = async (promise) => {
+  // Fetch tất cả bài (không filter) — dùng cho sidebar stats & dropdowns
+  const fetchAllArticles = async () => {
     setIsLoading(true);
     try {
-      const data = await promise;
+      const data = await articleService.getAllArticles();
       setArticles(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("API Error:", error);
@@ -30,18 +41,45 @@ export const useArticles = () => {
     }
   };
 
+  // Fetch với filter — gọi /api/articles/filter trên backend
+  const fetchFilteredArticles = async (params) => {
+    setIsLoading(true);
+    try {
+      const data = await articleService.filterArticles(params);
+      setFilteredArticles(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Filter API Error:", error);
+      setFilteredArticles([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    fetchArticles(articleService.getAllArticles());
+    fetchAllArticles();
   }, []);
+
+  // Mỗi khi filter hoặc searchQuery thay đổi → gọi API filter
+  useEffect(() => {
+    const from_date = getRangeDateParam(filters.range);
+
+    const params = {
+      keyword: searchQuery.trim() || undefined,
+      disease_name: filters.disease !== "Tất Cả" ? filters.disease : undefined,
+      location: filters.location !== "Tất Cả" ? filters.location : undefined,
+      risk_level: filters.risk_level !== "Tất Cả" ? filters.risk_level : undefined,
+      from_date: from_date || undefined,
+      limit: 200,
+    };
+
+    fetchFilteredArticles(params);
+    setCurrentPage(1);
+  }, [filters, searchQuery]);
 
   const handleSearch = (e) => {
     if (e.key === "Enter") {
-      const q = searchQuery.trim();
-      fetchArticles(
-        q === ""
-          ? articleService.getAllArticles()
-          : articleService.filterArticles({ keyword: q }),
-      );
+      // searchQuery đã được watch bởi useEffect ở trên → tự động re-fetch
+      setCurrentPage(1);
     }
   };
 
@@ -56,9 +94,10 @@ export const useArticles = () => {
       location: "Tất Cả",
       risk_level: "Tất Cả",
     });
+    setSearchQuery("");
   };
 
-  // Unique options cho dropdowns — dùng field thật từ backend
+  // Unique options cho dropdowns — lấy từ toàn bộ articles (không filter)
   const uniqueOptions = useMemo(() => {
     if (!articles.length) return { diseases: [], locations: [], tags: [] };
 
@@ -84,50 +123,6 @@ export const useArticles = () => {
 
     return { diseases, locations, sources, tags: diseases };
   }, [articles]);
-
-  // Apply local filters
-  useEffect(() => {
-    let result = articles;
-    const now = new Date();
-
-    if (searchQuery.trim() !== "") {
-      const q = searchQuery.toLowerCase().trim();
-      result = result.filter((a) => {
-        const titleMatch = a.title?.toLowerCase().includes(q);
-        const locationMatch = a.location?.toLowerCase().includes(q);
-        const diseaseMatch = a.disease_name?.toLowerCase().includes(q);
-
-        return titleMatch || locationMatch || diseaseMatch;
-      });
-    }
-
-    if (filters.range === "7 Ngày Qua") {
-      const limit = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      result = result.filter(
-        (a) => a.processed_at && new Date(a.processed_at) >= limit,
-      );
-    } else if (filters.range === "30 Ngày Qua") {
-      const limit = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      result = result.filter(
-        (a) => a.processed_at && new Date(a.processed_at) >= limit,
-      );
-    }
-
-    if (filters.disease !== "Tất Cả") {
-      result = result.filter((a) => a.disease_name === filters.disease);
-    }
-
-    if (filters.location !== "Tất Cả") {
-      result = result.filter((a) => a.location === filters.location);
-    }
-
-    if (filters.risk_level !== "Tất Cả") {
-      result = result.filter((a) => a.risk_level === filters.risk_level);
-    }
-
-    setFilteredArticles(result);
-    setCurrentPage(1);
-  }, [articles, filters, searchQuery]);
 
   const totalPages = Math.ceil(filteredArticles.length / articlesPerPage) || 1;
   const currentArticles = filteredArticles.slice(

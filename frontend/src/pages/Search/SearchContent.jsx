@@ -49,7 +49,8 @@ const LocationBadge = ({ location, onClear }) => (
   </div>
 );
 
-const RiskRow = ({ label, key: riskKey, color, articles }) => {
+// ✅ Fix: nhận riskKey thay vì key (key là reserved prop của React)
+const RiskRow = ({ label, riskKey, color, articles }) => {
   const count = countRisk(articles, riskKey);
   const percentage = pct(count, articles.length);
   return (
@@ -254,8 +255,15 @@ const SearchContent = () => {
           <div className="card widget-card">
             <h3 style={{ margin: "0 0 16px" }}>Phân bố Mức độ Rủi ro</h3>
             <div className="risk-distribution">
+              {/* ✅ Fix: tách riskKey ra khỏi spread để tránh lỗi React key prop */}
               {RISK_LEVELS.map((level) => (
-                <RiskRow key={level.key} {...level} articles={filteredArticles} />
+                <RiskRow
+                  key={level.key}
+                  label={level.label}
+                  riskKey={level.key}
+                  color={level.color}
+                  articles={filteredArticles}
+                />
               ))}
             </div>
             <p className="risk-total">
