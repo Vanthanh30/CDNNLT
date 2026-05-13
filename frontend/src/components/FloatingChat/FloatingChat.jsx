@@ -30,7 +30,6 @@ const MessageBubble = ({
     ));
   };
 
-  // 🟢 GIAO DIỆN KHI ĐANG CHỈNH SỬA (INLINE EDIT)
   if (isEditing) {
     return (
       <div className={`ac-msg ${msg.role}`}>
@@ -62,7 +61,6 @@ const MessageBubble = ({
     );
   }
 
-  // 🟢 GIAO DIỆN TIN NHẮN BÌNH THƯỜNG
   return (
     <div className={`ac-msg ${msg.role}`}>
       {msg.role === "ai" && (
@@ -72,8 +70,25 @@ const MessageBubble = ({
       )}
 
       <div className="ac-msg-bubble-wrap">
+        {/* 1. HIỂN THỊ CHỮ */}
         <div className="ac-msg-bubble">{renderText(msg.text)}</div>
 
+        {/* 2. 🟢 THANH CÔNG CỤ NẰM NGAY DƯỚI CHỮ */}
+        <div className="ac-msg-actions">
+          <button title="Copy" onClick={() => onCopy(msg.text)}>
+            <Copy size={12} />
+          </button>
+          {msg.role === "user" && (
+            <button
+              title="Chỉnh sửa"
+              onClick={() => onEditStart(msg.id, msg.text)}
+            >
+              <Edit2 size={12} />
+            </button>
+          )}
+        </div>
+
+        {/* 3. HIỂN THỊ NGUỒN THAM KHẢO (NẾU CÓ) NẰM DƯỚI CÙNG */}
         {msg.sources && msg.sources.length > 0 && (
           <div className="ac-msg-sources">
             <p className="source-title">
@@ -99,20 +114,6 @@ const MessageBubble = ({
               ))}
             </ul>
           </div>
-        )}
-      </div>
-
-      <div className="ac-msg-actions">
-        <button title="Copy" onClick={() => onCopy(msg.text)}>
-          <Copy size={12} />
-        </button>
-        {msg.role === "user" && (
-          <button
-            title="Chỉnh sửa"
-            onClick={() => onEditStart(msg.id, msg.text)}
-          >
-            <Edit2 size={12} />
-          </button>
         )}
       </div>
     </div>
