@@ -2,7 +2,6 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    /* Kế thừa class .panel từ Dashboard.css cho background/border */
 }
 
 .stat-title {
@@ -24,7 +23,6 @@
     font-size: 0.75rem;
 }
 
-/* Các class màu sắc cho text nhỏ bên dưới */
 .text-cyan {
     color: var(--accent-cyan);
 }
@@ -35,4 +33,33 @@
 
 .text-muted {
     color: var(--text-muted);
+}
+
+@media (max-width: 768px) {
+    .stat-value {
+        font-size: 1.4rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .stat-card {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .stat-title {
+        margin: 0;
+        font-size: 0.7rem;
+    }
+
+    .stat-value {
+        font-size: 1.2rem;
+        margin-bottom: 0;
+    }
+
+    .stat-subvalue {
+        font-size: 0.65rem;
+    }
 }

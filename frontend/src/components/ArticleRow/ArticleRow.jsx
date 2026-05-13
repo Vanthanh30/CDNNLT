@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Zap, ExternalLink } from "lucide-react";
-import "./ArticleRow.css"; // 🟢 Import file CSS vừa tạo
+import "./ArticleRow.css";
 
 const RISK_COLOR = { HIGH: "#ef4444", MEDIUM: "#f59e0b", LOW: "#10b981" };
 const RISK_LABEL = { HIGH: "Cao", MEDIUM: "Trung bình", LOW: "Thấp" };
@@ -17,10 +17,10 @@ const ArticleRow = ({ article }) => {
   const [imgError, setImgError] = useState(false);
   const riskColor = RISK_COLOR[article.risk_level] || RISK_COLOR.LOW;
   const favicon = getFavicon(article.url);
+  const hasStats = article.cases_infected > 0 || article.cases_dead > 0;
 
   return (
-    // Lớp "card" là class global có sẵn nền và viền, "article-row-container" định dạng hàng ngang
-    <div className="card article-row-container">
+    <div className="article-row-container">
       <div className="article-row-img-box">
         {favicon && !imgError ? (
           <img
@@ -36,16 +36,11 @@ const ArticleRow = ({ article }) => {
 
       <div className="article-row-content">
         <div className="article-row-meta">
-          <span
-            className="disease-badge"
-            style={{ color: riskColor, borderColor: riskColor }}
-          >
+          <span className="disease-badge" style={{ color: riskColor, borderColor: riskColor }}>
             {(article.disease_name || "TIN TỨC CHUNG").toUpperCase()}
           </span>
 
-          {article.location && (
-            <span className="meta-location">📍 {article.location}</span>
-          )}
+          {article.location && <span className="meta-location">📍 {article.location}</span>}
 
           <span className="meta-date">
             {article.processed_at
@@ -60,28 +55,20 @@ const ArticleRow = ({ article }) => {
           </a>
         </h3>
 
-        {article.summary && (
-          <p className="article-row-summary">{article.summary}</p>
-        )}
+        {article.summary && <p className="article-row-summary">{article.summary}</p>}
 
         <div className="article-row-footer">
           <span className="risk-info" style={{ color: riskColor }}>
             <Zap size={13} /> Rủi ro: {RISK_LABEL[article.risk_level] || "Thấp"}
           </span>
 
-          {(article.cases_infected > 0 || article.cases_dead > 0) && (
+          {hasStats && (
             <span className="stats-info">
-              🤒 {article.cases_infected ?? 0} nhiễm | 💀{" "}
-              {article.cases_dead ?? 0} tử vong
+              🤒 {article.cases_infected ?? 0} nhiễm | 💀 {article.cases_dead ?? 0} tử vong
             </span>
           )}
 
-          <a
-            href={article.url}
-            target="_blank"
-            rel="noreferrer"
-            className="read-more-link"
-          >
+          <a href={article.url} target="_blank" rel="noreferrer" className="read-more-link">
             Đọc bài gốc <ExternalLink size={12} />
           </a>
         </div>

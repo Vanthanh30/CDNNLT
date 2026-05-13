@@ -3,6 +3,9 @@
   gap: 16px;
   padding: 16px;
   margin-bottom: 12px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
   transition: all 0.2s ease;
 }
 
@@ -15,12 +18,12 @@
   flex-shrink: 0;
   width: 120px;
   height: 90px;
-  border-radius: 8px;
-  overflow: hidden;
-  background-color: #1e293b;
   display: flex;
   align-items: center;
   justify-content: center;
+  background-color: #1e293b;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .article-row-favicon {
@@ -47,11 +50,11 @@
 }
 
 .disease-badge {
-  font-size: 11px;
   padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
   border: 1px solid;
   border-radius: 4px;
-  font-weight: 700;
 }
 
 .meta-location {
@@ -60,9 +63,9 @@
 }
 
 .meta-date {
+  margin-left: auto;
   font-size: 11px;
   color: #64748b;
-  margin-left: auto;
 }
 
 .article-row-title {
@@ -76,14 +79,19 @@
   text-decoration: none;
 }
 
+.article-row-title a:hover {
+  color: #0ea5e9;
+}
+
 .article-row-summary {
-  font-size: 12px;
-  color: #94a3b8;
   margin: 0 0 8px;
-  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #94a3b8;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .article-row-footer {
@@ -94,11 +102,11 @@
 }
 
 .risk-info {
-  font-size: 12px;
-  font-weight: bold;
   display: flex;
   gap: 4px;
   align-items: center;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .stats-info {
@@ -107,15 +115,104 @@
 }
 
 .read-more-link {
-  margin-left: auto;
-  font-size: 11px;
-  color: #3b82f6;
   display: flex;
   gap: 4px;
   align-items: center;
+  margin-left: auto;
+  font-size: 11px;
+  color: #3b82f6;
   text-decoration: none;
 }
 
 .read-more-link:hover {
   text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .article-row-container {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .article-row-img-box {
+    width: 80px;
+    height: 60px;
+  }
+
+  .article-row-favicon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .article-row-placeholder {
+    font-size: 24px;
+  }
+
+  .article-row-title {
+    font-size: 13px;
+  }
+
+  .article-row-summary {
+    font-size: 11px;
+  }
+
+  .meta-date {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .article-row-container {
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .article-row-img-box {
+    width: 100%;
+    height: 50px;
+  }
+
+  .article-row-meta {
+    gap: 6px;
+  }
+
+  .disease-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+
+  .meta-location,
+  .meta-date {
+    font-size: 10px;
+  }
+
+  .article-row-title {
+    font-size: 12px;
+  }
+
+  .article-row-summary {
+    font-size: 10px;
+    -webkit-line-clamp: 3;
+  }
+
+  .article-row-footer {
+    gap: 8px;
+  }
+
+  .risk-info {
+    font-size: 11px;
+  }
+
+  .stats-info {
+    font-size: 10px;
+  }
+
+  .read-more-link {
+    font-size: 10px;
+    margin-left: 0;
+    flex-basis: 100%;
+  }
 }

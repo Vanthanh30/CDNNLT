@@ -1,4 +1,3 @@
-/* ── layout ── */
 .report-right-panel {
   display: flex;
   flex-direction: column;
@@ -14,7 +13,6 @@
   gap: 12px;
 }
 
-/* ── header ── */
 .rp-header {
   display: flex;
   justify-content: space-between;
@@ -52,7 +50,6 @@
   border-color: #38bdf8;
 }
 
-/* ── risk banner ── */
 .rp-risk-banner {
   display: flex;
   justify-content: space-between;
@@ -89,7 +86,6 @@
   color: #f8fafc;
 }
 
-/* ── pills ── */
 .rp-pills {
   display: flex;
   flex-wrap: wrap;
@@ -127,7 +123,6 @@
   flex-shrink: 0;
 }
 
-/* ── detail card ── */
 .rp-detail-card {
   background: #1e293b;
   border: 1px solid #334155;
@@ -139,7 +134,6 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* ── stats row ── */
 .rp-stats-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -168,14 +162,12 @@
   letter-spacing: 0.3px;
 }
 
-/* ── sparkline row ── */
 .rp-spark-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-/* ── section label ── */
 .rp-section-label {
   display: flex;
   align-items: center;
@@ -188,20 +180,17 @@
   margin-bottom: 10px;
 }
 
-/* ── bar chart ── */
 .rp-chart-section {
   display: flex;
   flex-direction: column;
 }
 
-/* wrapper bao gồm cả bar + axis */
 .rp-bar-chart-outer {
   display: flex;
   flex-direction: column;
   gap: 0;
 }
 
-/* vùng bar, chiều cao cố định */
 .rp-bar-chart {
   display: flex;
   align-items: flex-end;
@@ -225,7 +214,6 @@
   min-height: 3px;
 }
 
-/* axis row riêng, không ảnh hưởng chiều cao bar */
 .rp-bar-axis {
   display: flex;
   gap: 3px;
@@ -247,7 +235,6 @@
   white-space: nowrap;
   display: block;
   line-height: 1;
-  /* không xoay, thẳng đứng */
 }
 
 .rp-chart-loading {
@@ -278,7 +265,6 @@
   display: inline-block;
 }
 
-/* ── alert message ── */
 .rp-alert-msg {
   display: flex;
   align-items: flex-start;
@@ -295,7 +281,6 @@
   color: #94a3b8;
 }
 
-/* ── regions ── */
 .rp-regions {
   display: flex;
   flex-direction: column;
@@ -325,7 +310,6 @@
   font-weight: 600;
 }
 
-/* ── model meta ── */
 .rp-meta-row {
   display: flex;
   justify-content: space-between;
@@ -342,7 +326,6 @@
   font-style: normal;
 }
 
-/* ── muted / spinner ── */
 .rp-muted {
   font-size: 13px;
   color: #475569;
@@ -371,7 +354,6 @@
   }
 }
 
-/* icon quay cho trạng thái loading */
 .rp-spin-icon {
   animation: rp-spin 1s linear infinite;
 }
@@ -395,7 +377,6 @@
   color: #38bdf8;
 }
 
-/* ── retrain button ── */
 .btn-retrain {
   width: 100%;
   background-color: rgba(15, 23, 42, 0.6);
@@ -420,21 +401,89 @@
   border-color: #38bdf8;
 }
 
-.btn-retrain--busy {
-  cursor: not-allowed;
-  border-color: #f59e0b44;
-  color: #f59e0b;
-  background-color: rgba(245, 158, 11, 0.06);
-}
-
-.btn-retrain--done {
-  border-color: #22c55e44;
-  color: #22c55e;
-  background-color: rgba(34, 197, 94, 0.06);
-}
-
+.btn-retrain--busy,
+.btn-retrain--done,
 .btn-retrain--error {
-  border-color: #ef444444;
-  color: #ef4444;
-  background-color: rgba(239, 68, 68, 0.06);
+  cursor: not-allowed;
+}
+
+@media (max-width: 1024px) {
+  .rp-detail-card {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 768px) {
+  .report-right-panel {
+    gap: 14px;
+  }
+
+  .rp-title {
+    font-size: 18px;
+  }
+
+  .rp-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .rp-bar-chart {
+    height: 75px;
+  }
+
+  .rp-spark-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .rp-risk-banner {
+    padding: 12px 14px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .rp-risk-left {
+    width: 100%;
+  }
+
+  .rp-meta-row {
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-start;
+  }
+
+  .rp-chart-legend {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .rp-detail-card {
+    padding: 16px;
+  }
+
+  .rp-bar-chart {
+    height: 65px;
+    gap: 2px;
+  }
+
+  .rp-bar-label {
+    font-size: 8px;
+  }
+
+  .rp-pills {
+    gap: 6px;
+  }
+
+  .rp-pill {
+    padding: 5px 10px;
+    font-size: 11.5px;
+  }
+
+  .rp-risk-total {
+    font-size: 13px;
+  }
 }

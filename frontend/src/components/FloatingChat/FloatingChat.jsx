@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { Bot, Send, X, Link as LinkIcon, Copy, Edit2 } from "lucide-react";
 import "./FloatingChat.css";
 
-// ── SUB-COMPONENT: BÓNG TIN NHẮN ──────────────────────────────
 const MessageBubble = ({
   msg,
   onCopy,
@@ -16,21 +15,18 @@ const MessageBubble = ({
   const renderText = (text) => {
     return text.split("\n").map((line, lineIndex) => (
       <React.Fragment key={lineIndex}>
-        {line
-          .split(/(\*\*[^*]+\*\*)/g)
-          .map((part, i) =>
-            part.startsWith("**") ? (
-              <strong key={i}>{part.slice(2, -2)}</strong>
-            ) : (
-              <span key={i}>{part}</span>
-            ),
-          )}
+        {line.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+          part.startsWith("**") ? (
+            <strong key={i}>{part.slice(2, -2)}</strong>
+          ) : (
+            <span key={i}>{part}</span>
+          )
+        )}
         {lineIndex !== text.split("\n").length - 1 && <br />}
       </React.Fragment>
     ));
   };
 
-  // 🟢 GIAO DIỆN KHI ĐANG CHỈNH SỬA (INLINE EDIT)
   if (isEditing) {
     return (
       <div className={`ac-msg ${msg.role}`}>
@@ -50,10 +46,7 @@ const MessageBubble = ({
             <button className="ac-btn-cancel" onClick={onCancelEdit}>
               Hủy
             </button>
-            <button
-              className="ac-btn-save"
-              onClick={() => onSaveEdit(msg.id, editText)}
-            >
+            <button className="ac-btn-save" onClick={() => onSaveEdit(msg.id, editText)}>
               Gửi lại
             </button>
           </div>
@@ -62,7 +55,6 @@ const MessageBubble = ({
     );
   }
 
-  // 🟢 GIAO DIỆN TIN NHẮN BÌNH THƯỜNG
   return (
     <div className={`ac-msg ${msg.role}`}>
       {msg.role === "ai" && (
@@ -74,7 +66,7 @@ const MessageBubble = ({
       <div className="ac-msg-bubble-wrap">
         <div className="ac-msg-bubble">{renderText(msg.text)}</div>
 
-        {msg.sources && msg.sources.length > 0 && (
+        {msg.sources?.length > 0 && (
           <div className="ac-msg-sources">
             <p className="source-title">
               <LinkIcon size={10} /> Nguồn tham khảo:
@@ -82,15 +74,8 @@ const MessageBubble = ({
             <ul>
               {msg.sources.map((src, idx) => (
                 <li key={idx}>
-                  <a
-                    href={src.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    title={src.title}
-                  >
-                    {src.title.length > 40
-                      ? src.title.substring(0, 40) + "..."
-                      : src.title}
+                  <a href={src.url} target="_blank" rel="noreferrer" title={src.title}>
+                    {src.title.length > 40 ? `${src.title.substring(0, 40)}...` : src.title}
                   </a>
                   <span className="source-risk">
                     ({src.disease_name} - Rủi ro {src.risk_level})
@@ -107,10 +92,7 @@ const MessageBubble = ({
           <Copy size={12} />
         </button>
         {msg.role === "user" && (
-          <button
-            title="Chỉnh sửa"
-            onClick={() => onEditStart(msg.id, msg.text)}
-          >
+          <button title="Chỉnh sửa" onClick={() => onEditStart(msg.id, msg.text)}>
             <Edit2 size={12} />
           </button>
         )}
@@ -119,16 +101,12 @@ const MessageBubble = ({
   );
 };
 
-// ── MAIN COMPONENT ──────────────────────────────
 const FloatingChat = ({ stats }) => {
   const [showChat, setShowChat] = useState(false);
   const [closing, setClosing] = useState(false);
-
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
-
-  // 🟢 STATES CHO TÍNH NĂNG INLINE EDIT
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
 
@@ -162,7 +140,6 @@ const FloatingChat = ({ stats }) => {
 
   const handleCopy = (text) => navigator.clipboard.writeText(text);
 
-  // 🟢 CÁC HÀM XỬ LÝ CHỈNH SỬA TIN NHẮN
   const handleEditStart = (id, text) => {
     setEditingId(id);
     setEditText(text);
@@ -173,20 +150,15 @@ const FloatingChat = ({ stats }) => {
     setEditText("");
   };
 
-  // Hàm Gửi lại tin nhắn đã sửa
   const handleSaveEdit = async (msgId, newText) => {
     if (!newText.trim() || typing) return;
 
-    setEditingId(null); // Tắt chế độ Edit
+    setEditingId(null);
 
-    // Tìm vị trí của tin nhắn được sửa
     const msgIndex = messages.findIndex((m) => m.id === msgId);
     if (msgIndex === -1) return;
 
-    // Cắt bỏ tin nhắn cũ và toàn bộ các tin nhắn sau đó (giống ChatGPT)
     const updatedMessages = messages.slice(0, msgIndex);
-
-    // Thêm tin nhắn user mới cập nhật vào
     const newUserMsg = { id: Date.now(), role: "user", text: newText.trim() };
     setMessages([...updatedMessages, newUserMsg]);
     setTyping(true);
@@ -225,7 +197,6 @@ const FloatingChat = ({ stats }) => {
     }
   };
 
-  // Hàm Gửi tin nhắn mới như bình thường
   const send = async (quickText) => {
     const text = quickText || input.trim();
     if (!text || typing) return;
@@ -280,10 +251,7 @@ const FloatingChat = ({ stats }) => {
 
   return (
     <>
-      <button
-        className={`ac-fab ${showChat ? "active" : ""}`}
-        onClick={() => setShowChat(!showChat)}
-      >
+      <button className={`ac-fab ${showChat ? "active" : ""}`} onClick={() => setShowChat(!showChat)}>
         <Bot size={17} />
         <span>Sentinel AI</span>
       </button>
@@ -311,7 +279,6 @@ const FloatingChat = ({ stats }) => {
                 key={msg.id}
                 msg={msg}
                 onCopy={handleCopy}
-                // Truyền props cho Inline Edit
                 isEditing={editingId === msg.id}
                 editText={editText}
                 setEditText={setEditText}
@@ -358,11 +325,7 @@ const FloatingChat = ({ stats }) => {
               }}
               rows={1}
             />
-            <button
-              className="ac-send-btn"
-              onClick={() => send()}
-              disabled={typing || !input.trim()}
-            >
+            <button className="ac-send-btn" onClick={() => send()} disabled={typing || !input.trim()}>
               <Send size={15} />
             </button>
           </div>

@@ -6,45 +6,36 @@ const ReportLeftPanel = ({
   isLoadingPdf,
   handlePreview,
   handleDownload,
-  previewUrl, // 🟢 Thêm biến này để nhận link PDF từ Component cha
+  previewUrl,
 }) => {
   return (
     <div className="report-left-panel">
       <div className="panel-card">
-        {/* Header & Buttons */}
-        <div className="report-header">
+        <header className="report-header">
           <div className="header-titles">
             <h1>Tạo Báo cáo Rủi ro</h1>
-            <p>
-              Xem xét và đánh giá các chỉ số dịch tễ tổng hợp cùng dữ liệu giám
-              sát.
-            </p>
+            <p>Xem xét và đánh giá các chỉ số dịch tễ tổng hợp cùng dữ liệu giám sát.</p>
           </div>
+
           <div className="header-actions">
             <button
               className="btn-secondary"
               onClick={handlePreview}
               disabled={isLoadingPdf}
             >
-              {isLoadingPdf ? (
-                "ĐANG XỬ LÝ..."
-              ) : (
-                <>
-                  <Eye size={16} /> XEM TRƯỚC
-                </>
-              )}
+              {isLoadingPdf ? "ĐANG XỬ LÝ..." : <><Eye size={16} /> XEM TRƯỚC</>}
             </button>
+
             <button className="btn-export-main" onClick={handleDownload}>
               <Download size={16} /> XUẤT PDF
             </button>
           </div>
-        </div>
+        </header>
 
-        {/* 🟢 KHUNG HIỂN THỊ TRỰC TIẾP (EMBEDDED PREVIEW) */}
-        <div className="pdf-preview-container">
+        <main className="pdf-preview-container">
           {previewUrl ? (
             <iframe
-              src={previewUrl}
+              src={`${previewUrl}#toolbar=0`}
               title="PDF Preview"
               className="embedded-pdf-iframe"
             />
@@ -55,12 +46,11 @@ const ReportLeftPanel = ({
               </div>
               <p>Chưa có dữ liệu hiển thị.</p>
               <span>
-                Vui lòng bấm <strong>XEM TRƯỚC</strong> để tải và xem bản nháp
-                báo cáo PDF trực tiếp tại đây.
+                Vui lòng bấm <strong>XEM TRƯỚC</strong> để tải và xem bản nháp báo cáo PDF trực tiếp tại đây.
               </span>
             </div>
           )}
-        </div>
+        </main>
       </div>
     </div>
   );

@@ -1,18 +1,16 @@
-/* =========================================================
-   1. FAB BUTTON (NÚT GỌI BOT)
-========================================================= */
+/* FAB Button */
 .ac-fab {
   position: fixed;
   bottom: 28px;
   right: 28px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 20px;
   background: #6366f1;
   color: white;
   border: none;
   border-radius: 10px;
-  padding: 11px 20px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
   font-size: 13px;
   font-weight: 600;
   font-family: inherit;
@@ -21,38 +19,40 @@
   transition: all 0.2s ease;
   z-index: 100;
 }
+
 .ac-fab:hover {
   transform: translateY(-2px);
   box-shadow: 0 12px 30px rgba(99, 102, 241, 0.45);
 }
+
 .ac-fab.active {
   background: #374151;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
 }
 
-/* =========================================================
-   2. BỘ KHUNG CHAT (CONTAINER & HEADER)
-========================================================= */
+/* Chat Container */
 .ac-chat-box {
   position: fixed;
   bottom: 84px;
   right: 28px;
   width: 360px;
   height: 500px;
+  display: flex;
+  flex-direction: column;
   background: #111827;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 14px;
-  display: flex;
-  flex-direction: column;
-  z-index: 9999;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-  animation: chat-in 0.22s cubic-bezier(0.34, 1.4, 0.64, 1);
   font-family: "DM Sans", system-ui, sans-serif;
+  animation: chat-in 0.22s cubic-bezier(0.34, 1.4, 0.64, 1);
+  z-index: 9999;
 }
+
 .ac-chat-box.closing {
   animation: chat-out 0.2s ease forwards;
 }
 
+/* Header */
 .ac-chat-header {
   display: flex;
   justify-content: space-between;
@@ -61,82 +61,87 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   flex-shrink: 0;
 }
+
 .ac-bot-info {
   display: flex;
   align-items: center;
   gap: 10px;
 }
+
 .ac-bot-avatar {
+  flex-shrink: 0;
   width: 30px;
   height: 30px;
-  background: #6366f1;
-  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: #6366f1;
   color: white;
-  flex-shrink: 0;
+  border-radius: 8px;
 }
+
 .ac-bot-name {
+  margin: 0 0 2px;
   font-size: 13px;
   font-weight: 600;
-  margin: 0 0 2px;
   color: #f1f5f9;
 }
+
 .ac-bot-status {
+  margin: 0;
   font-size: 10px;
   color: #10b981;
-  margin: 0;
 }
 
 .ac-icon-btn {
+  display: flex;
+  padding: 4px;
   background: none;
   border: none;
+  border-radius: 5px;
   color: #6b7280;
   cursor: pointer;
-  padding: 4px;
-  border-radius: 5px;
-  display: flex;
   transition: all 0.15s;
 }
+
 .ac-icon-btn:hover {
   background: rgba(255, 255, 255, 0.06);
   color: #e2e8f0;
 }
 
-/* =========================================================
-   3. KHU VỰC TIN NHẮN & BONG BÓNG CHAT
-========================================================= */
+/* Messages Area */
 .ac-chat-messages {
   flex: 1;
-  overflow-y: auto;
-  padding: 12px 13px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding: 12px 13px;
+  overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
+
 .ac-msg {
   display: flex;
   gap: 8px;
   align-items: flex-start;
   position: relative;
 }
+
 .ac-msg.user {
   flex-direction: row-reverse;
 }
 
 .ac-msg-avatar {
+  flex-shrink: 0;
   width: 24px;
   height: 24px;
-  background: rgba(99, 102, 241, 0.2);
-  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: rgba(99, 102, 241, 0.2);
   color: #818cf8;
-  flex-shrink: 0;
+  border-radius: 6px;
 }
 
 .ac-msg-bubble-wrap {
@@ -145,77 +150,86 @@
   flex-direction: column;
   gap: 6px;
 }
+
 .ac-msg-bubble {
   padding: 8px 12px;
-  border-radius: 11px;
   font-size: 12px;
   line-height: 1.65;
   white-space: pre-wrap;
   word-break: break-word;
+  border-radius: 11px;
 }
+
 .ac-msg.ai .ac-msg-bubble {
   background: #1e293b;
   border: 1px solid rgba(255, 255, 255, 0.06);
   color: #e2e8f0;
   border-radius: 3px 11px 11px 11px;
 }
+
 .ac-msg.user .ac-msg-bubble {
   background: #4338ca;
   color: white;
   border-radius: 11px 3px 11px 11px;
 }
 
-/* =========================================================
-   4. NGUỒN THAM KHẢO & MENU ẨN (COPY/EDIT)
-========================================================= */
+/* Sources */
 .ac-msg-sources {
+  padding: 8px 10px;
   background-color: rgba(15, 23, 42, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 8px;
-  padding: 8px 10px;
   font-size: 11px;
 }
+
 .source-title {
-  margin: 0 0 6px 0;
-  color: #94a3b8;
-  font-weight: 600;
   display: flex;
   align-items: center;
   gap: 4px;
+  margin: 0 0 6px;
+  font-weight: 600;
+  color: #94a3b8;
 }
+
 .ac-msg-sources ul {
   margin: 0;
   padding-left: 14px;
 }
+
 .ac-msg-sources li {
   margin-bottom: 4px;
   color: #64748b;
 }
+
 .ac-msg-sources li:last-child {
   margin-bottom: 0;
 }
+
 .ac-msg-sources a {
   color: #38bdf8;
   text-decoration: none;
   transition: text-decoration 0.2s;
 }
+
 .ac-msg-sources a:hover {
   text-decoration: underline;
 }
+
 .source-risk {
   margin-left: 6px;
-  opacity: 0.7;
   font-style: italic;
+  opacity: 0.7;
 }
 
+/* Message Actions */
 .ac-msg-actions {
   display: flex;
   gap: 4px;
   position: absolute;
   top: -12px;
   right: 10px;
-  background-color: #334155;
   padding: 4px 6px;
+  background-color: #334155;
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   opacity: 0;
@@ -223,61 +237,66 @@
   transition: all 0.2s ease;
   z-index: 10;
 }
+
 .ac-msg:hover .ac-msg-actions {
   opacity: 1;
   visibility: visible;
   top: -16px;
 }
+
 .ac-msg.user .ac-msg-actions {
   right: auto;
   left: 10px;
 }
 
 .ac-msg-actions button {
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  cursor: pointer;
-  padding: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 4px;
+  background: transparent;
+  border: none;
   border-radius: 4px;
+  color: #94a3b8;
+  cursor: pointer;
   transition: all 0.2s;
 }
+
 .ac-msg-actions button:hover {
   background-color: rgba(255, 255, 255, 0.1);
   color: #e2e8f0;
 }
 
-/* =========================================================
-   5. CHẾ ĐỘ CHỈNH SỬA TIN NHẮN (INLINE EDIT)
-========================================================= */
+/* Edit Mode */
 .ac-msg-bubble-wrap.edit-mode {
   width: 100%;
+  padding: 8px;
   background-color: #1e293b;
   border: 1px solid #38bdf8;
   border-radius: 11px;
-  padding: 8px;
 }
+
 .ac-edit-textarea {
   width: 100%;
+  min-height: 24px;
+  max-height: 100px;
+  padding: 0;
   background: transparent;
   border: none;
   color: #e2e8f0;
   font-size: 12px;
-  resize: none;
-  outline: none;
   font-family: inherit;
   line-height: 1.5;
-  min-height: 24px;
-  max-height: 100px;
+  resize: none;
+  outline: none;
   overflow-y: auto;
   scrollbar-width: none;
 }
+
 .ac-edit-textarea::-webkit-scrollbar {
   display: none;
 }
+
 .ac-edit-actions {
   display: flex;
   justify-content: flex-end;
@@ -287,121 +306,130 @@
 
 .ac-btn-cancel,
 .ac-btn-save {
+  padding: 5px 10px;
   border: none;
   border-radius: 6px;
-  padding: 5px 10px;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
 }
+
 .ac-btn-cancel {
   background-color: transparent;
   color: #94a3b8;
 }
+
 .ac-btn-cancel:hover {
   background-color: rgba(255, 255, 255, 0.1);
   color: #cbd5e1;
 }
+
 .ac-btn-save {
   background-color: #0ea5e9;
   color: #fff;
 }
+
 .ac-btn-save:hover {
   background-color: #0284c7;
 }
 
-/* =========================================================
-   6. KHU VỰC NHẬP LIỆU (INPUT & QUICK BUTTONS)
-========================================================= */
+/* Quick Buttons */
 .ac-quick-btns {
-  padding: 7px 13px;
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+  padding: 7px 13px;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   flex-shrink: 0;
 }
+
 .ac-quick {
+  padding: 4px 10px;
   background: rgba(99, 102, 241, 0.1);
   border: 1px solid rgba(99, 102, 241, 0.22);
-  color: #818cf8;
-  padding: 4px 10px;
   border-radius: 20px;
+  color: #818cf8;
   font-size: 10.5px;
   font-weight: 500;
-  cursor: pointer;
   font-family: inherit;
+  cursor: pointer;
   transition: all 0.15s;
 }
+
 .ac-quick:hover {
   background: rgba(99, 102, 241, 0.2);
   color: #a5b4fc;
 }
 
+/* Input Area */
 .ac-chat-input {
   display: flex;
   gap: 8px;
+  align-items: flex-end;
   padding: 9px 13px 13px;
   flex-shrink: 0;
-  align-items: flex-end;
 }
+
 .ac-chat-input textarea {
   flex: 1;
+  min-height: 36px;
+  max-height: 76px;
+  padding: 8px 12px;
   background: #1e293b;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 9px;
-  padding: 8px 12px;
   color: #e2e8f0;
   font-size: 12px;
-  resize: none;
-  outline: none;
   font-family: inherit;
   line-height: 1.5;
-  transition: border-color 0.18s;
-  min-height: 36px;
-  max-height: 76px;
+  resize: none;
+  outline: none;
   overflow-y: auto;
   scrollbar-width: none;
+  transition: border-color 0.18s;
 }
+
 .ac-chat-input textarea::-webkit-scrollbar {
   display: none;
 }
+
 .ac-chat-input textarea:focus {
   border-color: #6366f1;
 }
 
 .ac-send-btn {
+  flex-shrink: 0;
   width: 34px;
   height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: #4338ca;
   border: none;
   border-radius: 9px;
   color: white;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
   transition: all 0.15s;
 }
+
 .ac-send-btn:hover:not(:disabled) {
   background: #6366f1;
 }
+
 .ac-send-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
 
-/* =========================================================
-   7. HIỆU ỨNG & ĐÁP ỨNG THIẾT BỊ (ANIMATIONS & RESPONSIVE)
-========================================================= */
+/* Typing Animation */
 .ac-msg-bubble.typing {
   display: flex;
   gap: 4px;
   align-items: center;
   padding: 10px 14px;
 }
+
 .ac-msg-bubble.typing span {
   width: 5px;
   height: 5px;
@@ -409,56 +437,117 @@
   border-radius: 50%;
   animation: typing 1.2s infinite;
 }
+
 .ac-msg-bubble.typing span:nth-child(2) {
   animation-delay: 0.2s;
 }
+
 .ac-msg-bubble.typing span:nth-child(3) {
   animation-delay: 0.4s;
 }
 
 @keyframes typing {
+
   0%,
   60%,
   100% {
     transform: translateY(0);
     opacity: 0.4;
   }
+
   30% {
     transform: translateY(-5px);
     opacity: 1;
   }
 }
+
 @keyframes chat-in {
   from {
     opacity: 0;
     transform: translateY(16px) scale(0.96);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
 }
+
 @keyframes chat-out {
   from {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+
   to {
     opacity: 0;
     transform: translateY(16px) scale(0.96);
   }
 }
 
+/* Responsive */
 @media (max-width: 768px) {
+  .ac-fab {
+    right: 16px;
+    bottom: 16px;
+  }
+
   .ac-chat-box {
     width: calc(100vw - 32px);
     right: 16px;
+    bottom: 70px;
   }
+}
+
+@media (max-width: 480px) {
   .ac-fab {
-    position: fixed;
-    right: 16px;
-    bottom: 16px;
-    z-index: 9998;
-    font-family: inherit;
+    padding: 10px 16px;
+    font-size: 12px;
+  }
+
+  .ac-chat-box {
+    width: calc(100vw - 24px);
+    height: calc(100vh - 120px);
+    right: 12px;
+    bottom: 60px;
+  }
+
+  .ac-chat-header {
+    padding: 10px 12px;
+  }
+
+  .ac-bot-name {
+    font-size: 12px;
+  }
+
+  .ac-msg-bubble {
+    font-size: 11px;
+  }
+
+  .ac-msg-bubble-wrap {
+    max-width: 85%;
+  }
+
+  .ac-quick-btns {
+    padding: 6px 10px;
+  }
+
+  .ac-quick {
+    font-size: 10px;
+    padding: 3px 8px;
+  }
+
+  .ac-chat-input {
+    padding: 8px 10px 10px;
+  }
+
+  .ac-chat-input textarea {
+    font-size: 11px;
+    padding: 7px 10px;
+  }
+
+  .ac-send-btn {
+    width: 32px;
+    height: 32px;
   }
 }
