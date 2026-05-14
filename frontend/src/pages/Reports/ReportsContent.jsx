@@ -10,15 +10,8 @@ import "./ReportsContent.css";
 const ReportsContent = () => {
   const { currentArticles, articles } = useArticles();
 
-  const {
-    latestArticle,
-    reportData,
-    chatStats,
-    previewUrl,
-    isLoadingPdf,
-    handlePreview,
-    handleDownload,
-  } = useReportData(articles, currentArticles);
+  const { chatStats, previewUrl, isLoadingPdf, handlePreview, handleDownload } =
+    useReportData(articles, currentArticles);
 
   return (
     <div className="risk-report-container">
@@ -31,9 +24,7 @@ const ReportsContent = () => {
           previewUrl={previewUrl}
         />
 
-        <ReportRightPanel
-          handleDownload={handleDownload}
-        />
+        <ReportRightPanel handleDownload={handleDownload} />
       </div>
 
       {/* CHATBOT */}
@@ -43,11 +34,11 @@ const ReportsContent = () => {
           top_keywords:
             chatStats.top_keyword !== "N/A"
               ? [
-                {
-                  keyword: chatStats.top_keyword,
-                  count: chatStats.top_keyword_count,
-                },
-              ]
+                  {
+                    keyword: chatStats.top_keyword,
+                    count: chatStats.top_keyword_count,
+                  },
+                ]
               : [],
         }}
       />

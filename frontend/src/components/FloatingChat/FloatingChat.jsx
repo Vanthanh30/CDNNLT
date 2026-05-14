@@ -15,13 +15,15 @@ const MessageBubble = ({
   const renderText = (text) => {
     return text.split("\n").map((line, lineIndex) => (
       <React.Fragment key={lineIndex}>
-        {line.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-          part.startsWith("**") ? (
-            <strong key={i}>{part.slice(2, -2)}</strong>
-          ) : (
-            <span key={i}>{part}</span>
-          )
-        )}
+        {line
+          .split(/(\*\*[^*]+\*\*)/g)
+          .map((part, i) =>
+            part.startsWith("**") ? (
+              <strong key={i}>{part.slice(2, -2)}</strong>
+            ) : (
+              <span key={i}>{part}</span>
+            ),
+          )}
         {lineIndex !== text.split("\n").length - 1 && <br />}
       </React.Fragment>
     ));
@@ -46,7 +48,10 @@ const MessageBubble = ({
             <button className="ac-btn-cancel" onClick={onCancelEdit}>
               Hủy
             </button>
-            <button className="ac-btn-save" onClick={() => onSaveEdit(msg.id, editText)}>
+            <button
+              className="ac-btn-save"
+              onClick={() => onSaveEdit(msg.id, editText)}
+            >
               Gửi lại
             </button>
           </div>
@@ -64,9 +69,26 @@ const MessageBubble = ({
       )}
 
       <div className="ac-msg-bubble-wrap">
+        {/* 1. HIỂN THỊ CHỮ */}
         <div className="ac-msg-bubble">{renderText(msg.text)}</div>
 
-        {msg.sources?.length > 0 && (
+        {/* 2. 🟢 THANH CÔNG CỤ NẰM NGAY DƯỚI CHỮ */}
+        <div className="ac-msg-actions">
+          <button title="Copy" onClick={() => onCopy(msg.text)}>
+            <Copy size={12} />
+          </button>
+          {msg.role === "user" && (
+            <button
+              title="Chỉnh sửa"
+              onClick={() => onEditStart(msg.id, msg.text)}
+            >
+              <Edit2 size={12} />
+            </button>
+          )}
+        </div>
+
+        {/* 3. HIỂN THỊ NGUỒN THAM KHẢO (NẾU CÓ) NẰM DƯỚI CÙNG */}
+        {msg.sources && msg.sources.length > 0 && (
           <div className="ac-msg-sources">
             <p className="source-title">
               <LinkIcon size={10} /> Nguồn tham khảo:
@@ -74,8 +96,15 @@ const MessageBubble = ({
             <ul>
               {msg.sources.map((src, idx) => (
                 <li key={idx}>
-                  <a href={src.url} target="_blank" rel="noreferrer" title={src.title}>
-                    {src.title.length > 40 ? `${src.title.substring(0, 40)}...` : src.title}
+                  <a
+                    href={src.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={src.title}
+                  >
+                    {src.title.length > 40
+                      ? `${src.title.substring(0, 40)}...`
+                      : src.title}
                   </a>
                   <span className="source-risk">
                     ({src.disease_name} - Rủi ro {src.risk_level})
@@ -84,17 +113,6 @@ const MessageBubble = ({
               ))}
             </ul>
           </div>
-        )}
-      </div>
-
-      <div className="ac-msg-actions">
-        <button title="Copy" onClick={() => onCopy(msg.text)}>
-          <Copy size={12} />
-        </button>
-        {msg.role === "user" && (
-          <button title="Chỉnh sửa" onClick={() => onEditStart(msg.id, msg.text)}>
-            <Edit2 size={12} />
-          </button>
         )}
       </div>
     </div>
@@ -251,7 +269,10 @@ const FloatingChat = ({ stats }) => {
 
   return (
     <>
-      <button className={`ac-fab ${showChat ? "active" : ""}`} onClick={() => setShowChat(!showChat)}>
+      <button
+        className={`ac-fab ${showChat ? "active" : ""}`}
+        onClick={() => setShowChat(!showChat)}
+      >
         <Bot size={17} />
         <span>Sentinel AI</span>
       </button>
@@ -325,7 +346,11 @@ const FloatingChat = ({ stats }) => {
               }}
               rows={1}
             />
-            <button className="ac-send-btn" onClick={() => send()} disabled={typing || !input.trim()}>
+            <button
+              className="ac-send-btn"
+              onClick={() => send()}
+              disabled={typing || !input.trim()}
+            >
               <Send size={15} />
             </button>
           </div>

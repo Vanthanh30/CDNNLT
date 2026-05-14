@@ -220,36 +220,40 @@
   font-style: italic;
   opacity: 0.7;
 }
-
-/* Message Actions */
+/* ── THANH CÔNG CỤ TIN NHẮN (COPY & EDIT) ── */
 .ac-msg-actions {
   display: flex;
   gap: 4px;
-  position: absolute;
-  top: -12px;
-  right: 10px;
-  padding: 4px 6px;
-  background-color: #334155;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  margin-top: 2px;
   opacity: 0;
   visibility: hidden;
   transition: all 0.2s ease;
-  z-index: 10;
 }
 
+/* Hiển thị khi di chuột vào khối tin nhắn */
 .ac-msg:hover .ac-msg-actions {
   opacity: 1;
   visibility: visible;
-  top: -16px;
+}
+
+/* Căn lề tùy theo người gửi */
+.ac-msg.ai .ac-msg-actions {
+  justify-content: flex-start;
+  padding-left: 4px;
 }
 
 .ac-msg.user .ac-msg-actions {
-  right: auto;
-  left: 10px;
+  justify-content: flex-end;
+  padding-right: 4px;
 }
 
+/* Style cho các nút bấm */
 .ac-msg-actions button {
+  background: transparent;
+  border: none;
+  color: #64748b; /* Màu xám dịu mắt hơn */
+  cursor: pointer;
+  padding: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -263,11 +267,12 @@
 }
 
 .ac-msg-actions button:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.08);
   color: #e2e8f0;
 }
-
-/* Edit Mode */
+/* =========================================================
+   5. CHẾ ĐỘ CHỈNH SỬA TIN NHẮN (INLINE EDIT)
+========================================================= */
 .ac-msg-bubble-wrap.edit-mode {
   width: 100%;
   padding: 8px;
@@ -447,7 +452,6 @@
 }
 
 @keyframes typing {
-
   0%,
   60%,
   100% {
