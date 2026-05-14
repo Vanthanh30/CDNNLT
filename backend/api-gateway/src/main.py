@@ -224,12 +224,12 @@ def _ensure_report_service_import_path():
     raise HTTPException(status_code=503, detail="Report service code is not available")
 
 
-@app.get("/api/report/weekly/download")
-def download_weekly_report():
+def _download_monthly_report():
     _ensure_report_service_import_path()
 
-    from report_generator import generate_weekly_report
+    from report_generator import generate_monthly_report
 
+    result = generate_monthly_report()
     result = generate_weekly_report()
 
     if not result:
@@ -242,6 +242,16 @@ def download_weekly_report():
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@app.get("/api/report/monthly/download")
+def download_monthly_report():
+    return _download_monthly_report()
+
+
+@app.get("/api/report/weekly/download")
+def download_weekly_report():
+    return _download_monthly_report()
 
 
 # ============================================================

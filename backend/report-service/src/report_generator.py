@@ -26,6 +26,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 from config import *
 import mysql.connector
 
+REPORT_RANGE_DAYS = 30
 
 # ========================
 # FONT CONFIG (FIX WINDOWS + DEPLOY)
@@ -59,9 +60,9 @@ def init_db():
     conn = get_connection()
     if conn:
         conn.close()
-        print("✅ Report service DB connected")
+        print("Report service DB connected")
     else:
-        raise RuntimeError("❌ Cannot connect DB")
+        raise RuntimeError("Cannot connect DB")
 
 # ========================
 # COLOR PALETTE (match Word doc)
@@ -228,7 +229,7 @@ def build_header_banner(report_id, period, gen_date, version, styles):
     """Dark-blue banner with title and metadata table."""
     title_cell = [
         Paragraph("HỆ THỐNG EPISENSE", styles["MainTitle"]),
-        Paragraph("BÁO CÁO DỊCH BỆNH HẰNG TUẦN", styles["MainTitle"]),
+        Paragraph("BÁO CÁO DỊCH BỆNH HẰNG THÁNG", styles["MainTitle"]),
         Spacer(1, 4),
         Paragraph("Hệ thống giám sát dịch bệnh tự động", styles["SubTitle"]),
     ]
@@ -283,7 +284,7 @@ def build_section1(stats, styles):
     items = []
     items += section_heading("1. TÓM TẮT TỔNG QUAN", styles)
     items.append(italic_note(
-        "Dữ liệu được tổng hợp tự động từ các nguồn tin tức và sự kiện dịch bệnh trong tuần.", styles))
+        "Dữ liệu được tổng hợp tự động từ các nguồn tin tức và sự kiện dịch bệnh trong 30 ngày gần nhất.", styles))
     items.append(Spacer(1, 6))
 
     bullets = [
@@ -330,12 +331,12 @@ def build_section3(stats, styles):
     items = []
     items += section_heading("3. PHÂN TÍCH SỐ LIỆU THEO BỆNH", styles)
 
-    rows = [["Bệnh", "Số ca"]]
-    chart_data = []
+    chart_data = stats["top_disease_cases"] or stats["top_diseases"]
+    metric_label = "Số ca" if stats["top_disease_cases"] else "Số bài"
+    rows = [["Bệnh", metric_label]]
 
-    for disease, cases in stats["top_disease_cases"]:
-        rows.append([disease, format_count(cases)])
-        chart_data.append((disease, cases))
+    for disease, value in chart_data:
+        rows.append([disease, format_count(value)])
 
     table = build_data_table(rows)
     items.append(table)
@@ -354,12 +355,12 @@ def build_section4(stats, styles):
     items = []
     items += section_heading("4. PHÂN BỐ ĐỊA LÝ", styles)
 
-    rows = [["Khu vực", "Số ca"]]
-    chart_data = []
+    chart_data = stats["top_region_cases"] or stats["top_regions"]
+    metric_label = "Số ca" if stats["top_region_cases"] else "Số bài"
+    rows = [["Khu vực", metric_label]]
 
-    for region, cases in stats["top_region_cases"]:
-        rows.append([region, format_count(cases)])
-        chart_data.append((region, cases))
+    for region, value in chart_data:
+        rows.append([region, format_count(value)])
 
     table = build_data_table(rows)
     items.append(table)
@@ -568,8 +569,8 @@ def sanitize_weekly_cases(disease, cases, title=""):
     cap = DISEASE_WEEKLY_CASE_CAPS.get(disease, DEFAULT_WEEKLY_CASE_CAP)
     if cases > cap:
         print(
-            "⚠️ Bỏ qua số ca bất thường trong báo cáo tuần: "
-            f"{disease or 'Không xác định'} = {cases} | {title or ''}"
+            "Skip abnormal monthly case count: "
+            f"{disease or 'unknown'} = {cases} | {title or ''}"
         )
         return 0
 
@@ -765,7 +766,7 @@ def generate_pdf(ai_summary_text: str, stats: dict,
     Args:
         ai_summary_text: AI-generated paragraph summary.
         stats:           dict from analyze_data().
-        start_date:      date object (defaults to the first day of the 7-day range).
+        start_date:      date object (defaults to the first day of the report range).
         end_date:        date object (defaults to today).
 
     Returns:
@@ -774,9 +775,9 @@ def generate_pdf(ai_summary_text: str, stats: dict,
     if end_date is None:
         end_date = date.today()
     if start_date is None:
-        start_date = end_date - timedelta(days=6)
+        start_date = end_date - timedelta(days=REPORT_RANGE_DAYS - 1)
 
-    report_id = f"#EPI-{end_date.year}-{end_date.month:02d}-W1"
+    report_id = f"#EPI-{end_date.year}-{end_date.month:02d}-M1"
     period    = f"{format_date_vi(start_date)} - {format_date_vi(end_date)}"
     gen_date  = format_date_vi(end_date)
     version   = "v2.5 (kiến trúc vi dịch vụ)"
@@ -827,14 +828,14 @@ def generate_pdf(ai_summary_text: str, stats: dict,
 # ========================
 # ENTRY POINT
 # ========================
-def generate_weekly_report():
+def generate_monthly_report():
     """Wrapper that fetches DB data and calls generate_pdf."""
     from database import get_articles_in_range, save_weekly_report
     from ai_summary import generate_ai_summary
 
     today      = date.today()
     end_date   = today
-    start_date = end_date - timedelta(days=6)
+    start_date = end_date - timedelta(days=REPORT_RANGE_DAYS - 1)
 
     rows = get_articles_in_range(start_date, end_date)
     if not rows:
@@ -853,7 +854,7 @@ def generate_weekly_report():
         )
 
     pdf_buffer = generate_pdf(summary, stats, start_date, end_date)
-    filename   = f"weekly_{start_date}_{end_date}.pdf"
+    filename   = f"monthly_{start_date}_{end_date}.pdf"
     report_id = save_weekly_report(
         start_date=start_date,
         end_date=end_date,
@@ -862,7 +863,11 @@ def generate_weekly_report():
         pdf_url=None,
         article_ids=stats["article_ids"],
     )
-    print(f"✅ Đã lưu WEEKLY_REPORT: {report_id}")
+    print(f"Saved WEEKLY_REPORT: {report_id}")
 
     pdf_buffer.seek(0)
     return pdf_buffer, filename
+
+
+def generate_weekly_report():
+    return generate_monthly_report()

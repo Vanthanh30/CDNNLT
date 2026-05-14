@@ -30,9 +30,9 @@ def init_db():
     conn = get_connection()
     if conn:
         conn.close()
-        print("✅ Report service DB connected")
+        print("Report service DB connected")
     else:
-        raise RuntimeError("❌ Cannot connect DB")
+        raise RuntimeError("Cannot connect DB")
 
 
 # =========================
@@ -54,14 +54,14 @@ def get_articles_in_range(start_date, end_date):
             s.cases_infected,
             s.cases_dead,
             s.cases_recovered,
-            COALESCE(de.event_date, DATE(r.published_at)) AS report_date
+            COALESCE(de.event_date, DATE(r.published_at), a.processed_at) AS report_date
         FROM ARTICLE a
         JOIN RAW_ARTICLE r ON r.id = a.raw_article_id
-        JOIN DISEASE_EVENT de ON de.article_id = a.id
+        LEFT JOIN DISEASE_EVENT de ON de.article_id = a.id
         LEFT JOIN DISEASE d ON d.id = de.disease_id
         LEFT JOIN REGION rg ON rg.id = de.region_id
         LEFT JOIN STATIC s ON s.event_id = de.id
-        WHERE DATE(COALESCE(de.event_date, r.published_at)) BETWEEN %s AND %s
+        WHERE DATE(COALESCE(de.event_date, r.published_at, a.processed_at)) BETWEEN %s AND %s
         ORDER BY report_date DESC
     """, (start_date, end_date))
 

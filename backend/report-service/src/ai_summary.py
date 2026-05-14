@@ -55,13 +55,13 @@ def build_synced_summary(stats, start_date, end_date):
     region_text = _format_ranked_items(region_cases, "ca")
 
     return (
-        f"Trong tuần từ ngày {_format_date(start_date)} đến {_format_date(end_date)}, "
+        f"Trong 30 ngày từ ngày {_format_date(start_date)} đến {_format_date(end_date)}, "
         f"hệ thống ghi nhận {_format_number(stats.get('total_cases'))} ca nhiễm "
         f"trên tổng số {_format_number(stats.get('total_articles'))} bài báo cáo, "
         f"với {_format_number(stats.get('total_dead'))} ca tử vong. "
         f"Các bệnh dịch nổi bật theo số ca gồm {disease_text}. "
         f"Các khu vực ghi nhận số ca cao nhất gồm {region_text}. "
-        f"Mức rủi ro xuất hiện nhiều nhất trong dữ liệu tuần này là {dominant_risk}, "
+        f"Mức rủi ro xuất hiện nhiều nhất trong dữ liệu tháng này là {dominant_risk}, "
         f"vì vậy cần ưu tiên theo dõi các nhóm bệnh và địa bàn có số ca cao nhất trong bảng thống kê."
     )
 
@@ -123,6 +123,6 @@ def generate_ai_summary(stats, start_date, end_date):
         if summary:
             return summary
     except Exception as exc:
-        print(f"⚠️ Không gọi được GPT để tóm tắt báo cáo: {exc}")
+        print(f"Could not call GPT to summarize report: {exc}")
 
     return build_synced_summary(stats, start_date, end_date)
