@@ -230,7 +230,6 @@ def _download_monthly_report():
     from report_generator import generate_monthly_report
 
     result = generate_monthly_report()
-    result = generate_weekly_report()
 
     if not result:
         return {"message": "Không có dữ liệu"}

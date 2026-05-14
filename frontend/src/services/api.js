@@ -36,7 +36,7 @@ export const articleService = {
 export const reportService = {
   downloadWeeklyReport: async () => {
     const response = await fetch(
-      "http://localhost:8000/api/report/weekly/download",
+      "http://localhost:8000/api/report/monthly/download",
     );
     if (!response.ok) {
       throw new Error("Không thể tải báo cáo từ máy chủ");

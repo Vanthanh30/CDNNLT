@@ -46,6 +46,7 @@ if not os.path.exists(FONT_BOLD_PATH):
 pdfmetrics.registerFont(TTFont("DejaVu", FONT_PATH))
 pdfmetrics.registerFont(TTFont("DejaVu-Bold", FONT_BOLD_PATH))
 
+
 def get_connection():
     return mysql.connector.connect(
         host=DB_HOST,
@@ -53,8 +54,9 @@ def get_connection():
         user=DB_USER,
         password=DB_PASSWORD,
         database=DB_NAME,
-        charset="utf8mb4"
+        charset="utf8mb4",
     )
+
 
 def init_db():
     conn = get_connection()
@@ -64,17 +66,18 @@ def init_db():
     else:
         raise RuntimeError("Cannot connect DB")
 
+
 # ========================
 # COLOR PALETTE (match Word doc)
 # ========================
-COLOR_DARK_HEADER   = colors.HexColor("#1F3864")   # dark navy – main title bg
-COLOR_SECTION_BG    = colors.HexColor("#2E74B5")   # blue – section heading bg
-COLOR_TABLE_HEADER  = colors.HexColor("#34495E")   # dark slate – table header bg
-COLOR_TABLE_ROW_ALT = colors.HexColor("#EBF3FB")   # light blue – alternate rows
-COLOR_HIGH_RISK     = colors.HexColor("#C00000")   # red
-COLOR_MED_RISK      = colors.HexColor("#ED7D31")   # orange
-COLOR_LOW_RISK      = colors.HexColor("#70AD47")   # green
-COLOR_BORDER        = colors.HexColor("#ADB9CA")   # soft border
+COLOR_DARK_HEADER = colors.HexColor("#1F3864")  # dark navy – main title bg
+COLOR_SECTION_BG = colors.HexColor("#2E74B5")  # blue – section heading bg
+COLOR_TABLE_HEADER = colors.HexColor("#34495E")  # dark slate – table header bg
+COLOR_TABLE_ROW_ALT = colors.HexColor("#EBF3FB")  # light blue – alternate rows
+COLOR_HIGH_RISK = colors.HexColor("#C00000")  # red
+COLOR_MED_RISK = colors.HexColor("#ED7D31")  # orange
+COLOR_LOW_RISK = colors.HexColor("#70AD47")  # green
+COLOR_BORDER = colors.HexColor("#ADB9CA")  # soft border
 
 
 # ========================
@@ -183,15 +186,18 @@ def build_styles():
 def section_heading(text, styles):
     """Return a list of flowables: colored banner + bottom spacer."""
     # Wrap text in a Table cell so we can set background color easily
-    tbl = Table([[Paragraph(text, styles["SectionHeading"])]],
-                colWidths=["100%"])
-    tbl.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), COLOR_SECTION_BG),
-        ("TOPPADDING",    (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 10),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 10),
-    ]))
+    tbl = Table([[Paragraph(text, styles["SectionHeading"])]], colWidths=["100%"])
+    tbl.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), COLOR_SECTION_BG),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ]
+        )
+    )
     return [Spacer(1, 12), tbl, Spacer(1, 6)]
 
 
@@ -228,7 +234,7 @@ def format_risk_level(value):
 def build_header_banner(report_id, period, gen_date, version, styles):
     """Dark-blue banner with title and metadata table."""
     title_cell = [
-        Paragraph("HỆ THỐNG EPISENSE", styles["MainTitle"]),
+        Paragraph("HỆ THỐNG CLINICAL SENTINEL", styles["MainTitle"]),
         Paragraph("BÁO CÁO DỊCH BỆNH HẰNG THÁNG", styles["MainTitle"]),
         Spacer(1, 4),
         Paragraph("Hệ thống giám sát dịch bệnh tự động", styles["SubTitle"]),
@@ -236,13 +242,17 @@ def build_header_banner(report_id, period, gen_date, version, styles):
 
     # Banner background table
     banner = Table([[title_cell]], colWidths=["100%"])
-    banner.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), COLOR_DARK_HEADER),
-        ("TOPPADDING",    (0, 0), (-1, -1), 14),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 14),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 20),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 20),
-    ]))
+    banner.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), COLOR_DARK_HEADER),
+                ("TOPPADDING", (0, 0), (-1, -1), 14),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 14),
+                ("LEFTPADDING", (0, 0), (-1, -1), 20),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 20),
+            ]
+        )
+    )
 
     # Metadata row (4 cells)
     meta_data = [
@@ -261,20 +271,29 @@ def build_header_banner(report_id, period, gen_date, version, styles):
     ]
     col_w = [2.5 * cm, 6 * cm, 2.5 * cm, 6 * cm]
     meta_tbl = Table(meta_data, colWidths=col_w)
-    meta_tbl.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (-1, -1), "DejaVu"),
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#EBF3FB")),
-        ("TOPPADDING",    (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
-        ("BOX", (0, 0), (-1, -1), 0.5, COLOR_BORDER),
-        ("INNERGRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#D0D0D0")),
-    ]))
+    meta_tbl.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, -1), "DejaVu"),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#EBF3FB")),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("BOX", (0, 0), (-1, -1), 0.5, COLOR_BORDER),
+                ("INNERGRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#D0D0D0")),
+            ]
+        )
+    )
 
-    return [banner, Spacer(1, 6), meta_tbl, Spacer(1, 4),
-            HRFlowable(width="100%", thickness=1.5, color=COLOR_DARK_HEADER),
-            Spacer(1, 8)]
+    return [
+        banner,
+        Spacer(1, 6),
+        meta_tbl,
+        Spacer(1, 4),
+        HRFlowable(width="100%", thickness=1.5, color=COLOR_DARK_HEADER),
+        Spacer(1, 8),
+    ]
 
 
 # ========================
@@ -283,15 +302,23 @@ def build_header_banner(report_id, period, gen_date, version, styles):
 def build_section1(stats, styles):
     items = []
     items += section_heading("1. TÓM TẮT TỔNG QUAN", styles)
-    items.append(italic_note(
-        "Dữ liệu được tổng hợp tự động từ các nguồn tin tức và sự kiện dịch bệnh trong 30 ngày gần nhất.", styles))
+    items.append(
+        italic_note(
+            "Dữ liệu được tổng hợp tự động từ các nguồn tin tức và sự kiện dịch bệnh trong 30 ngày gần nhất.",
+            styles,
+        )
+    )
     items.append(Spacer(1, 6))
 
     bullets = [
-        (f"<b>Tổng số bài báo đã xử lý:</b> {format_count(stats.get('total_articles'))} bài viết"),
+        (
+            f"<b>Tổng số bài báo đã xử lý:</b> {format_count(stats.get('total_articles'))} bài viết"
+        ),
         (f"<b>Tổng ca nhiễm:</b> {format_count(stats.get('total_cases'))}"),
         (f"<b>Tổng ca tử vong:</b> {format_count(stats.get('total_dead'))}"),
-        (f"<b>Vùng ảnh hưởng trọng điểm:</b> Đông Nam Á (Việt Nam, Thái Lan), Tây Thái Bình Dương"),
+        (
+            f"<b>Vùng ảnh hưởng trọng điểm:</b> Đông Nam Á (Việt Nam, Thái Lan), Tây Thái Bình Dương"
+        ),
     ]
     for b in bullets:
         items.append(Paragraph(f"• {b}", styles["Bullet"]))
@@ -305,21 +332,29 @@ def build_section1(stats, styles):
 def build_section2(ai_text, styles):
     items = []
     items += section_heading("2. TÓM TẮT DỊCH BỆNH TỰ ĐỘNG", styles)
-    items.append(italic_note(
-        "Nội dung được tổng hợp tự động từ dữ liệu bài báo và sự kiện dịch bệnh:", styles))
+    items.append(
+        italic_note(
+            "Nội dung được tổng hợp tự động từ dữ liệu bài báo và sự kiện dịch bệnh:",
+            styles,
+        )
+    )
     items.append(Spacer(1, 6))
 
     # Quoted block – light background
     quote_para = Paragraph(ai_text.strip(), styles["Body"])
     quote_tbl = Table([[quote_para]], colWidths=["100%"])
-    quote_tbl.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F2F9FF")),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 12),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 12),
-        ("TOPPADDING",    (0, 0), (-1, -1), 8),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-        ("BOX", (0, 0), (-1, -1), 1, COLOR_SECTION_BG),
-    ]))
+    quote_tbl.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F2F9FF")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("BOX", (0, 0), (-1, -1), 1, COLOR_SECTION_BG),
+            ]
+        )
+    )
     items.append(quote_tbl)
     return items
 
@@ -372,20 +407,20 @@ def build_section4(stats, styles):
     return items
 
 
-# ========================
-# SECTION 5 – ARTICLES
-# ========================
-def build_section5(stats, styles):
-    items = []
-    items += section_heading("5. BÀI VIẾT NỔI BẬT", styles)
+# # ========================
+# # SECTION 5 – ARTICLES
+# # ========================
+# def build_section5(stats, styles):
+#     items = []
+#     items += section_heading("5. BÀI VIẾT NỔI BẬT", styles)
 
-    for a in stats["articles"][:5]:
-        items.append(Paragraph(
-            f"• <b>{a['title']}</b> (Rủi ro: {format_risk_level(a['risk'])})",
-            styles["Bullet"]
-        ))
+#     for a in stats["articles"][:5]:
+#         items.append(Paragraph(
+#             f"• <b>{a['title']}</b> (Rủi ro: {format_risk_level(a['risk'])})",
+#             styles["Bullet"]
+#         ))
 
-    return items
+#     return items
 
 
 # ========================
@@ -393,7 +428,7 @@ def build_section5(stats, styles):
 # ========================
 def build_section6(stats, styles):
     items = []
-    items += section_heading("6. KHUYẾN NGHỊ HỆ THỐNG", styles)
+    items += section_heading("5. KHUYẾN NGHỊ HỆ THỐNG", styles)
 
     risk_stats = stats["risk_stats"]
 
@@ -402,10 +437,12 @@ def build_section6(stats, styles):
     else:
         level = max(risk_stats, key=risk_stats.get)
 
-    items.append(Paragraph(
-        f"• Mức rủi ro tổng quan: <b>{format_risk_level(level)}</b>",
-        styles["Bullet"]
-    ))
+    items.append(
+        Paragraph(
+            f"• Mức rủi ro tổng quan: <b>{format_risk_level(level)}</b>",
+            styles["Bullet"],
+        )
+    )
 
     return items
 
@@ -420,7 +457,9 @@ def build_footer(styles):
         Spacer(1, 6),
         Paragraph("[Chữ ký điện tử]", styles["FooterBold"]),
         Paragraph("Bộ tạo báo cáo EpiSense", styles["FooterBold"]),
-        Paragraph("Báo cáo được tạo tự động từ hệ thống phân tích dữ liệu", styles["Footer"]),
+        Paragraph(
+            "Báo cáo được tạo tự động từ hệ thống phân tích dữ liệu", styles["Footer"]
+        ),
     ]
     return items
 
@@ -433,21 +472,30 @@ def build_footer(styles):
 # ========================
 def build_data_table(rows):
     table = Table(rows, colWidths=[10 * cm, 5 * cm], hAlign="LEFT")
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "DejaVu-Bold"),
-        ("FONTNAME", (0, 1), (-1, -1), "DejaVu"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("ALIGN", (1, 1), (1, -1), "RIGHT"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("GRID", (0, 0), (-1, -1), 0.5, COLOR_BORDER),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, COLOR_TABLE_ROW_ALT]),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-    ]))
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "DejaVu-Bold"),
+                ("FONTNAME", (0, 1), (-1, -1), "DejaVu"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("ALIGN", (1, 1), (1, -1), "RIGHT"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("GRID", (0, 0), (-1, -1), 0.5, COLOR_BORDER),
+                (
+                    "ROWBACKGROUNDS",
+                    (0, 1),
+                    (-1, -1),
+                    [colors.white, COLOR_TABLE_ROW_ALT],
+                ),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
     return table
 
 
@@ -501,9 +549,9 @@ def create_pie_chart(risk_stats):
     pie.slices.strokeWidth = 0.5
 
     color_map = {
-        "LOW":    COLOR_LOW_RISK,
+        "LOW": COLOR_LOW_RISK,
         "MEDIUM": COLOR_MED_RISK,
-        "HIGH":   COLOR_HIGH_RISK,
+        "HIGH": COLOR_HIGH_RISK,
     }
     labels = list(risk_stats.keys())
     total = sum(pie.data)
@@ -519,8 +567,15 @@ def create_pie_chart(risk_stats):
         percent = (value / total * 100) if total else 0
         color = color_map.get(key, colors.grey)
         drawing.add(Rect(20, y_pos, 12, 12, fillColor=color, strokeWidth=0))
-        drawing.add(String(40, y_pos, f"{format_risk_level(key)}: {value} ({percent:.1f}%)",
-                           fontName="DejaVu", fontSize=9))
+        drawing.add(
+            String(
+                40,
+                y_pos,
+                f"{format_risk_level(key)}: {value} ({percent:.1f}%)",
+                fontName="DejaVu",
+                fontSize=9,
+            )
+        )
         y_pos -= 22
 
     return drawing
@@ -530,13 +585,20 @@ def create_pie_chart(risk_stats):
 # HELPER: inline styles
 # ========================
 def _tbl_hdr_style():
-    return ParagraphStyle("_th", fontName="DejaVu-Bold", fontSize=9,
-                          leading=12, textColor=colors.white, alignment=TA_CENTER)
+    return ParagraphStyle(
+        "_th",
+        fontName="DejaVu-Bold",
+        fontSize=9,
+        leading=12,
+        textColor=colors.white,
+        alignment=TA_CENTER,
+    )
 
 
 def _tbl_cell_style(align=TA_LEFT):
-    return ParagraphStyle("_td", fontName="DejaVu", fontSize=9,
-                          leading=12, alignment=align)
+    return ParagraphStyle(
+        "_td", fontName="DejaVu", fontSize=9, leading=12, alignment=align
+    )
 
 
 def _hex(color):
@@ -612,10 +674,7 @@ def analyze_data(rows):
         risk = (r.get("risk_level") or "LOW").upper()
 
         # 👉 lưu article
-        articles.append({
-        "title": r.get("title"),
-        "risk": r.get("risk_level") or "LOW"
-        })
+        articles.append({"title": r.get("title"), "risk": r.get("risk_level") or "LOW"})
 
         if disease:
             disease_counter[disease] += 1
@@ -637,28 +696,29 @@ def analyze_data(rows):
         "total_articles": len(rows),
         "total_cases": total_cases,
         "total_dead": total_dead,
-
         "top_diseases": disease_counter.most_common(5),
         "top_disease_cases": disease_cases.most_common(5),
         "disease_risk": disease_risk,
-
         "top_regions": region_counter.most_common(5),
         "top_region_cases": region_cases.most_common(5),
-
         "risk_stats": dict(risk_counter),
         "article_ids": article_ids,
-        "articles": articles
+        "articles": articles,
     }
 
     # =========================
+
+
 # AGGREGATE QUERIES
 # =========================
+
 
 def get_disease_stats(start_date, end_date):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT
             d.name AS disease,
             COALESCE(SUM(s.cases_infected), 0) AS total_cases,
@@ -672,7 +732,9 @@ def get_disease_stats(start_date, end_date):
         GROUP BY d.name
         ORDER BY total_cases DESC
         LIMIT 5
-    """, (start_date, end_date))
+    """,
+        (start_date, end_date),
+    )
 
     rows = cursor.fetchall()
     for r in rows:
@@ -687,7 +749,8 @@ def get_region_stats(start_date, end_date):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT
             rg.name AS region,
             COALESCE(SUM(s.cases_infected), 0) AS total_cases
@@ -700,7 +763,9 @@ def get_region_stats(start_date, end_date):
         GROUP BY rg.name
         ORDER BY total_cases DESC
         LIMIT 5
-    """, (start_date, end_date))
+    """,
+        (start_date, end_date),
+    )
 
     rows = cursor.fetchall()
     for r in rows:
@@ -715,7 +780,8 @@ def get_top_articles(start_date, end_date):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT
             r.title,
             de.risk_level
@@ -725,7 +791,9 @@ def get_top_articles(start_date, end_date):
         WHERE DATE(COALESCE(de.event_date, r.published_at)) BETWEEN %s AND %s
         ORDER BY COALESCE(de.event_date, DATE(r.published_at)) DESC
         LIMIT 5
-    """, (start_date, end_date))
+    """,
+        (start_date, end_date),
+    )
 
     rows = cursor.fetchall()
     cursor.close()
@@ -737,7 +805,8 @@ def get_risk_stats(start_date, end_date):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT
             de.risk_level,
             COUNT(*) AS total
@@ -746,7 +815,9 @@ def get_risk_stats(start_date, end_date):
         JOIN RAW_ARTICLE r ON r.id = a.raw_article_id
         WHERE DATE(COALESCE(de.event_date, r.published_at)) BETWEEN %s AND %s
         GROUP BY de.risk_level
-    """, (start_date, end_date))
+    """,
+        (start_date, end_date),
+    )
 
     rows = cursor.fetchall()
     cursor.close()
@@ -758,8 +829,9 @@ def get_risk_stats(start_date, end_date):
 # ========================
 # MAIN PDF GENERATOR
 # ========================
-def generate_pdf(ai_summary_text: str, stats: dict,
-                 start_date=None, end_date=None) -> BytesIO:
+def generate_pdf(
+    ai_summary_text: str, stats: dict, start_date=None, end_date=None
+) -> BytesIO:
     """
     Generate a styled PDF report matching the Word document template.
 
@@ -778,9 +850,9 @@ def generate_pdf(ai_summary_text: str, stats: dict,
         start_date = end_date - timedelta(days=REPORT_RANGE_DAYS - 1)
 
     report_id = f"#EPI-{end_date.year}-{end_date.month:02d}-M1"
-    period    = f"{format_date_vi(start_date)} - {format_date_vi(end_date)}"
-    gen_date  = format_date_vi(end_date)
-    version   = "v2.5 (kiến trúc vi dịch vụ)"
+    period = f"{format_date_vi(start_date)} - {format_date_vi(end_date)}"
+    gen_date = format_date_vi(end_date)
+    version = "v2.5 (kiến trúc vi dịch vụ)"
 
     styles = build_styles()
 
@@ -811,8 +883,8 @@ def generate_pdf(ai_summary_text: str, stats: dict,
     # ── SECTION 4
     story += build_section4(stats, styles)
 
-    # ── SECTION 5
-    story += build_section5(stats, styles)
+    # # ── SECTION 5
+    # story += build_section5(stats, styles)
 
     # ── SECTION 6
     story += build_section6(stats, styles)
@@ -833,8 +905,8 @@ def generate_monthly_report():
     from database import get_articles_in_range, save_weekly_report
     from ai_summary import generate_ai_summary
 
-    today      = date.today()
-    end_date   = today
+    today = date.today()
+    end_date = today
     start_date = end_date - timedelta(days=REPORT_RANGE_DAYS - 1)
 
     rows = get_articles_in_range(start_date, end_date)
@@ -854,7 +926,7 @@ def generate_monthly_report():
         )
 
     pdf_buffer = generate_pdf(summary, stats, start_date, end_date)
-    filename   = f"monthly_{start_date}_{end_date}.pdf"
+    filename = f"monthly_{start_date}_{end_date}.pdf"
     report_id = save_weekly_report(
         start_date=start_date,
         end_date=end_date,
