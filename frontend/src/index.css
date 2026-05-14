@@ -110,7 +110,6 @@ code {
   background: var(--code-bg);
 } */
 :root {
-  /* Khai báo các biến màu xanh đen */
   --bg-dark: #050a14;
   --bg-panel: #0d1726;
   --bg-panel-hover: #162235;
@@ -121,35 +120,43 @@ code {
   --border-color: rgba(49, 130, 206, 0.15);
 }
 
-/* 1. Quan trọng nhất: Set nền cho body */
 body {
   margin: 0;
   padding: 0;
   background-color: var(--bg-dark);
-  /* Màu xanh đen sâu nhất */
   color: var(--text-main);
   min-height: 100vh;
 }
 
-/* 2. Fix cho React Root (Vite/CRA thường bao quanh bằng thẻ này) */
 #root {
   background-color: var(--bg-dark);
   min-height: 100vh;
 }
 
-/* 3. Đảm bảo Container chính cũng không có nền trắng */
 .dashboard-container {
   display: flex;
   height: 100vh;
   background-color: var(--bg-dark);
-  /* Thêm dòng này để chắc chắn */
   overflow: hidden;
 }
 
-/* 4. Giữ nguyên các phần panel của bạn */
+@media (max-width: 768px) {
+  .dashboard-container {
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .main-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+  }
+}
+
 .panel {
   background-color: var(--bg-panel);
-  /* Màu xanh đen nhạt hơn một chút */
   border-radius: 12px;
   padding: 20px;
   border: 1px solid var(--border-color);
