@@ -29,7 +29,7 @@ load_dotenv(REPORT_SERVICE_DIR / ".env")
 
 FORECAST_SERVICE_URL = os.getenv("FORECAST_SERVICE_URL", "http://localhost:8010")
 
-CHATBOT_SERVICE_URL = "http://localhost:8001/chat"
+CHATBOT_SERVICE_URL = os.getenv("CHATBOT_SERVICE_URL", "http://localhost:8001/chat")
 
 
 # ============================================================

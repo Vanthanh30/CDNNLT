@@ -36,6 +36,13 @@ services:
     depends_on:
       - db
 
+  chatbot:
+    build: ./backend/chatbot-service
+    ports:
+      - "8001:8000"
+    env_file:
+      - ./backend/report-service/.env
+
   api:
     build: ./backend/api-gateway
     ports:
@@ -44,11 +51,13 @@ services:
       - ./backend/report-service/.env
     environment:
       FORECAST_SERVICE_URL: "http://forecast:8010"
+      CHATBOT_SERVICE_URL: "http://chatbot:8000/chat"
     volumes:
       - ./backend/report-service:/app/report-service
     depends_on:
       - db
       - forecast
+      - chatbot
 
   frontend:
     build: ./frontend

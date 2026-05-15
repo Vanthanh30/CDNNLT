@@ -2,11 +2,16 @@ from dotenv import load_dotenv
 import os
 from pathlib import Path
 
-# load .env đúng path
-env_path = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(dotenv_path=env_path)
+
+BASE_DIR = Path(__file__).resolve().parents[1]
+REPO_BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+load_dotenv(BASE_DIR / ".env")
+
+if not os.getenv("OPENAI_API_KEY"):
+    load_dotenv(REPO_BACKEND_DIR / "report-service" / ".env")
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # API gateway
-GATEWAY_URL = "http://localhost:8080/internal/search"
+GATEWAY_URL = os.getenv("GATEWAY_URL", "http://localhost:8000/internal/search")
