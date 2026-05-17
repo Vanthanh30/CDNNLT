@@ -44,7 +44,15 @@ def _model_path(disease_name: str | None, location: str | None):
 
 def _continuous_series(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
-        return pd.DataFrame(columns=["event_date", "cases_infected", "event_count", "observed", "signal_cases"])
+        return pd.DataFrame(
+            columns=[
+                "event_date",
+                "cases_infected",
+                "event_count",
+                "observed",
+                "signal_cases",
+            ]
+        )
 
     start = min(df["event_date"])
     end = max(df["event_date"])
@@ -53,7 +61,9 @@ def _continuous_series(df: pd.DataFrame) -> pd.DataFrame:
 
     series["observed"] = series["cases_infected"].notna().astype(int)
     series["cases_infected"] = pd.to_numeric(series["cases_infected"], errors="coerce")
-    series["event_count"] = pd.to_numeric(series.get("event_count", 0), errors="coerce").fillna(0)
+    series["event_count"] = pd.to_numeric(
+        series.get("event_count", 0), errors="coerce"
+    ).fillna(0)
 
     observed_cases = series["cases_infected"].clip(lower=0)
     positive_cases = observed_cases.where(observed_cases > 0)
@@ -80,9 +90,6 @@ def _continuous_series(df: pd.DataFrame) -> pd.DataFrame:
             signal.iloc[last_idx + 1 :] = last_value * np.power(0.9, days_after)
         signal = signal.fillna(0)
 
-    # Article-derived numbers are noisy and spiky. The model learns the outbreak
-    # signal. A reported event with 0 extracted cases means "no count found",
-    # not "zero infections", so only positive case observations shape the signal.
     series["signal_cases"] = signal.ewm(span=7, adjust=False).mean().clip(lower=0)
     series["cases_infected"] = observed_cases.fillna(0).clip(lower=0)
     return series
@@ -115,7 +122,9 @@ def _add_features(series: pd.DataFrame) -> pd.DataFrame:
     data["rolling_7"] = y.shift(1).rolling(7, min_periods=1).mean()
     data["rolling_14"] = y.shift(1).rolling(14, min_periods=1).mean()
     data["trend_7"] = data["rolling_3"] - data["rolling_7"]
-    data["event_count_7"] = data.get("event_count", 0).shift(1).rolling(7, min_periods=1).sum()
+    data["event_count_7"] = (
+        data.get("event_count", 0).shift(1).rolling(7, min_periods=1).sum()
+    )
     return data.fillna(0)
 
 
@@ -127,7 +136,11 @@ def _metrics(y_true: pd.Series, y_pred: np.ndarray) -> dict:
     y_pred_arr = np.asarray(y_pred, dtype=float)
     mae = float(mean_absolute_error(y_true_arr, y_pred_arr))
     denominator = float(np.sum(np.abs(y_true_arr)))
-    wape = float(np.sum(np.abs(y_true_arr - y_pred_arr)) / denominator) if denominator else None
+    wape = (
+        float(np.sum(np.abs(y_true_arr - y_pred_arr)) / denominator)
+        if denominator
+        else None
+    )
     return {
         "mae": mae,
         "wape": wape,
@@ -150,10 +163,12 @@ def _fallback_forecast(series: pd.DataFrame, forecast_days: int) -> list[dict]:
     output = []
     for day in range(1, forecast_days + 1):
         predicted = max(0, round(baseline + trend * day))
-        output.append({
-            "date": (last_date + timedelta(days=day)).isoformat(),
-            "predicted_cases": int(predicted),
-        })
+        output.append(
+            {
+                "date": (last_date + timedelta(days=day)).isoformat(),
+                "predicted_cases": int(predicted),
+            }
+        )
     return output
 
 
@@ -170,13 +185,15 @@ def _pad_series_to_today(series: pd.DataFrame) -> pd.DataFrame:
     signal = float(series["signal_cases"].iloc[-1])
     for next_date in pd.date_range(last_date + timedelta(days=1), today, freq="D").date:
         signal *= 0.88
-        rows.append({
-            "event_date": next_date,
-            "cases_infected": 0,
-            "event_count": 0,
-            "observed": 0,
-            "signal_cases": signal,
-        })
+        rows.append(
+            {
+                "event_date": next_date,
+                "cases_infected": 0,
+                "event_count": 0,
+                "observed": 0,
+                "signal_cases": signal,
+            }
+        )
 
     if not rows:
         return series
@@ -188,7 +205,9 @@ def train_forecast_model(
     location: str | None = None,
     history_days: int = 180,
 ) -> dict:
-    raw = fetch_daily_cases(disease_name=disease_name, location=location, history_days=history_days)
+    raw = fetch_daily_cases(
+        disease_name=disease_name, location=location, history_days=history_days
+    )
     series = _continuous_series(raw)
     observed_days = int(series["observed"].sum()) if not series.empty else 0
 
@@ -259,15 +278,19 @@ def _next_feature_row(series: pd.DataFrame) -> pd.DataFrame:
     next_seed = pd.concat(
         [
             series,
-            pd.DataFrame([
-                {
-                    "event_date": next_date,
-                    "cases_infected": 0,
-                    "event_count": 0,
-                    "observed": 0,
-                    "signal_cases": float(series["signal_cases"].iloc[-1]) if len(series) else 0,
-                }
-            ]),
+            pd.DataFrame(
+                [
+                    {
+                        "event_date": next_date,
+                        "cases_infected": 0,
+                        "event_count": 0,
+                        "observed": 0,
+                        "signal_cases": float(series["signal_cases"].iloc[-1])
+                        if len(series)
+                        else 0,
+                    }
+                ]
+            ),
         ],
         ignore_index=True,
     )
@@ -301,8 +324,6 @@ def _baseline_next_signal(context: dict, step: int) -> float:
     recent_avg = float(context["recent_avg"])
     trend_per_day = float(context["trend_per_day"])
 
-    # Keep declines gradual for sparse article data. A quiet week is weak
-    # evidence, not proof that infections instantly reached zero.
     min_decay = max(last_signal, recent_avg * 0.7) * np.power(0.93, step)
     trend_projection = last_signal + trend_per_day * step
     return max(0.0, min_decay, trend_projection)
@@ -338,15 +359,17 @@ def _predict_with_model(model_data: dict, forecast_days: int) -> list[dict]:
         series = pd.concat(
             [
                 series,
-                pd.DataFrame([
-                    {
-                        "event_date": next_date,
-                        "cases_infected": predicted,
-                        "event_count": 0,
-                        "observed": 0,
-                        "signal_cases": predicted_signal,
-                    }
-                ]),
+                pd.DataFrame(
+                    [
+                        {
+                            "event_date": next_date,
+                            "cases_infected": predicted,
+                            "event_count": 0,
+                            "observed": 0,
+                            "signal_cases": predicted_signal,
+                        }
+                    ]
+                ),
             ],
             ignore_index=True,
         )
@@ -354,11 +377,15 @@ def _predict_with_model(model_data: dict, forecast_days: int) -> list[dict]:
 
 
 def _risk_alert(history: list[dict], forecast: list[dict]) -> dict:
-    history_signal = [item.get("signal_cases", item["cases_infected"]) for item in history[-14:]]
+    history_signal = [
+        item.get("signal_cases", item["cases_infected"]) for item in history[-14:]
+    ]
     forecast_cases = [item["predicted_cases"] for item in forecast]
 
     recent_avg = float(np.mean(history_signal[-7:])) if history_signal else 0.0
-    previous_avg = float(np.mean(history_signal[:7])) if len(history_signal) >= 14 else recent_avg
+    previous_avg = (
+        float(np.mean(history_signal[:7])) if len(history_signal) >= 14 else recent_avg
+    )
     forecast_peak = max(forecast_cases) if forecast_cases else 0
     forecast_avg = float(np.mean(forecast_cases)) if forecast_cases else 0.0
 
@@ -368,7 +395,12 @@ def _risk_alert(history: list[dict], forecast: list[dict]) -> dict:
     recent_growth = (recent_avg - previous_avg) / max(previous_avg, 1.0)
     risk_score = min(
         1.0,
-        max(0.0, growth_ratio * 0.45 + max(0.0, peak_ratio - 1) * 0.35 + max(0.0, recent_growth) * 0.2),
+        max(
+            0.0,
+            growth_ratio * 0.45
+            + max(0.0, peak_ratio - 1) * 0.35
+            + max(0.0, recent_growth) * 0.2,
+        ),
     )
 
     if recent_avg >= 150 and forecast_peak >= 50:
@@ -403,11 +435,18 @@ def get_forecast(
     forecast_days = min(14, max(7, int(forecast_days)))
     path = _model_path(disease_name, location)
     if not path.exists():
-        train_forecast_model(disease_name=disease_name, location=location, history_days=history_days)
+        train_forecast_model(
+            disease_name=disease_name, location=location, history_days=history_days
+        )
 
     model_data = joblib.load(path)
-    if model_data.get("model_version") != MODEL_VERSION or model_data.get("history_days") != history_days:
-        train_forecast_model(disease_name=disease_name, location=location, history_days=history_days)
+    if (
+        model_data.get("model_version") != MODEL_VERSION
+        or model_data.get("history_days") != history_days
+    ):
+        train_forecast_model(
+            disease_name=disease_name, location=location, history_days=history_days
+        )
         model_data = joblib.load(path)
 
     series = _pad_series_to_today(model_data["series"])
@@ -462,41 +501,49 @@ def get_disease_forecast_summary(
             history_days=history_days,
         )
         forecast_days = forecast_result.get("forecast", [])
-        total_predicted = int(sum(day.get("predicted_cases", 0) for day in forecast_days))
-        peak_predicted = int(max([day.get("predicted_cases", 0) for day in forecast_days] or [0]))
+        total_predicted = int(
+            sum(day.get("predicted_cases", 0) for day in forecast_days)
+        )
+        peak_predicted = int(
+            max([day.get("predicted_cases", 0) for day in forecast_days] or [0])
+        )
         alert = forecast_result.get("alert", {})
 
         if total_predicted <= 0 and peak_predicted <= 0:
             continue
 
-        items.append({
-            "disease_name": name,
-            "location": location,
-            "forecast_days": days,
-            "predicted_total_7d": total_predicted,
-            "predicted_peak": peak_predicted,
-            "daily_forecast": forecast_days,
-            "risk_level": alert.get("risk_level", "LOW"),
-            "risk_score": alert.get("risk_score", 0),
-            "risk_message": alert.get("message", ""),
-            "recent_avg": alert.get("recent_avg", 0),
-            "forecast_avg": alert.get("forecast_avg", 0),
-            "history_total_cases": disease.get("total_cases", 0),
-            "event_count": disease.get("event_count", 0),
-            "last_event_date": disease.get("last_event_date"),
-            "regions": fetch_disease_regions(name, history_days=history_days, limit=5),
-            "method": forecast_result.get("method"),
-            "observed_days": forecast_result.get("observed_days", 0),
-            "confidence": (
-                "LOW"
-                if forecast_result.get("observed_days", 0) < 3
-                else "MEDIUM"
-                if forecast_result.get("observed_days", 0) < 7
-                else "HIGH"
-            ),
-            "mae": forecast_result.get("mae"),
-            "wape": forecast_result.get("wape"),
-        })
+        items.append(
+            {
+                "disease_name": name,
+                "location": location,
+                "forecast_days": days,
+                "predicted_total_7d": total_predicted,
+                "predicted_peak": peak_predicted,
+                "daily_forecast": forecast_days,
+                "risk_level": alert.get("risk_level", "LOW"),
+                "risk_score": alert.get("risk_score", 0),
+                "risk_message": alert.get("message", ""),
+                "recent_avg": alert.get("recent_avg", 0),
+                "forecast_avg": alert.get("forecast_avg", 0),
+                "history_total_cases": disease.get("total_cases", 0),
+                "event_count": disease.get("event_count", 0),
+                "last_event_date": disease.get("last_event_date"),
+                "regions": fetch_disease_regions(
+                    name, history_days=history_days, limit=5
+                ),
+                "method": forecast_result.get("method"),
+                "observed_days": forecast_result.get("observed_days", 0),
+                "confidence": (
+                    "LOW"
+                    if forecast_result.get("observed_days", 0) < 3
+                    else "MEDIUM"
+                    if forecast_result.get("observed_days", 0) < 7
+                    else "HIGH"
+                ),
+                "mae": forecast_result.get("mae"),
+                "wape": forecast_result.get("wape"),
+            }
+        )
 
     severity_order = {"HIGH": 3, "MEDIUM": 2, "LOW": 1}
     items.sort(

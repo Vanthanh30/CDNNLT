@@ -10,7 +10,8 @@ from config import *
 # DB_PASSWORD = ""
 # DB_NAME = "disease_management"
 
-REPORT_FOLDER = "reports"   
+REPORT_FOLDER = "reports"
+
 
 def generate_id():
     return str(uuid.uuid4())
@@ -23,8 +24,9 @@ def get_connection():
         user=DB_USER,
         password=DB_PASSWORD,
         database=DB_NAME,
-        charset="utf8mb4"
+        charset="utf8mb4",
     )
+
 
 def init_db():
     conn = get_connection()
@@ -35,15 +37,12 @@ def init_db():
         raise RuntimeError("Cannot connect DB")
 
 
-# =========================
-# GET DATA
-# =========================
-
 def get_articles_in_range(start_date, end_date):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT
             a.id AS article_id,
             r.title,
@@ -63,7 +62,9 @@ def get_articles_in_range(start_date, end_date):
         LEFT JOIN STATIC s ON s.event_id = de.id
         WHERE DATE(COALESCE(de.event_date, r.published_at, a.processed_at)) BETWEEN %s AND %s
         ORDER BY report_date DESC
-    """, (start_date, end_date))
+    """,
+        (start_date, end_date),
+    )
 
     rows = cursor.fetchall()
     cursor.close()
@@ -71,29 +72,33 @@ def get_articles_in_range(start_date, end_date):
     return rows
 
 
-# =========================
-# SAVE REPORT
-# =========================
-
-def save_weekly_report(start_date, end_date, summary_text, total_articles, pdf_url, article_ids):
+def save_weekly_report(
+    start_date, end_date, summary_text, total_articles, pdf_url, article_ids
+):
     conn = get_connection()
     cursor = conn.cursor()
 
     report_id = generate_id()
 
     try:
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO WEEKLY_REPORT
             (id, week_start, week_end, summary_text, total_articles, pdf_url)
             VALUES (%s, %s, %s, %s, %s, %s)
-        """, (report_id, start_date, end_date, summary_text, total_articles, pdf_url))
+        """,
+            (report_id, start_date, end_date, summary_text, total_articles, pdf_url),
+        )
 
         unique_article_ids = list(dict.fromkeys(article_ids or []))
         for aid in unique_article_ids:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO WEEKLY_REPORT_ARTICLE (report_id, article_id)
                 VALUES (%s, %s)
-            """, (report_id, aid))
+            """,
+                (report_id, aid),
+            )
 
         conn.commit()
         return report_id

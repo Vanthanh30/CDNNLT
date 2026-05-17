@@ -6,9 +6,6 @@ from mysql.connector import Error
 from datetime import date, datetime
 from mysql.connector import Error
 
-# ========================
-# CONFIG
-# ========================
 DB_HOST = "localhost"
 DB_PORT = 3306
 DB_USER = "root"
@@ -16,16 +13,10 @@ DB_PASSWORD = "123456"
 DB_NAME = "disease_management"
 
 
-# ── Import VALID sets từ nlp_engine để validate trước khi lưu DB ──
 def _get_valid_sets():
     from nlp_engine import VALID_LOCATIONS, VALID_DISEASES
 
     return VALID_LOCATIONS, VALID_DISEASES
-
-
-# ========================
-# HELPERS
-# ========================
 
 
 def generate_id() -> str:
@@ -64,14 +55,7 @@ def init_db():
         raise RuntimeError("Không kết nối được MySQL!")
 
 
-# ========================
-# DATE HELPER
-# ========================
-
-# ── Cửa sổ thời gian hợp lệ ──
-# Cào 10 năm (2016-01-01 → hôm nay) để phục vụ tính năng lọc theo ngày/tháng/năm.
-# Chặn cứng bài trước 2016 và bài tương lai (lỗi timezone).
-_DB_DATE_MIN = datetime(2016, 1, 1)  # 10 năm về trước tính từ 2026
+_DB_DATE_MIN = datetime(2016, 1, 1)
 
 
 def _is_date_valid_for_db(dt: datetime) -> bool:
@@ -109,14 +93,12 @@ def _normalize_published_at(published_at) -> str | None:
     if published_at is None or published_at == "":
         return None
 
-    # datetime object
     if isinstance(published_at, datetime):
         if not _is_date_valid_for_db(published_at):
             print(f"  ⚠️  published_at ngoài khoảng hợp lệ: {published_at} → lưu NULL")
             return None
         return published_at.strftime("%Y-%m-%d %H:%M:%S")
 
-    # date object
     if isinstance(published_at, date):
         dt = datetime(published_at.year, published_at.month, published_at.day)
         if not _is_date_valid_for_db(dt):
@@ -124,13 +106,11 @@ def _normalize_published_at(published_at) -> str | None:
             return None
         return published_at.strftime("%Y-%m-%d") + " 00:00:00"
 
-    # String — thử các format phổ biến
     if isinstance(published_at, str):
         raw = published_at.strip()
         if not raw:
             return None
 
-        # Đã đúng format MySQL — vẫn PHẢI validate khoảng ngày
         import re
 
         if re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$", raw):
@@ -143,7 +123,6 @@ def _normalize_published_at(published_at) -> str | None:
             except Exception:
                 return None
 
-        # ISO 8601: 2026-05-09T10:30:00+07:00 hoặc ...Z
         try:
             dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
             dt = dt.replace(tzinfo=None)
@@ -154,7 +133,6 @@ def _normalize_published_at(published_at) -> str | None:
         except Exception:
             pass
 
-        # RFC 2822: Fri, 09 May 2026 10:30:00 +0700
         try:
             from email.utils import parsedate_to_datetime
 
@@ -166,7 +144,6 @@ def _normalize_published_at(published_at) -> str | None:
         except Exception:
             pass
 
-        # Chỉ có ngày YYYY-MM-DD
         m = re.match(r"^(\d{4}-\d{2}-\d{2})$", raw)
         if m:
             try:
@@ -178,7 +155,6 @@ def _normalize_published_at(published_at) -> str | None:
             except Exception:
                 pass
 
-        # DD/MM/YYYY
         m = re.match(r"^(\d{2})/(\d{2})/(\d{4})$", raw)
         if m:
             try:
@@ -192,7 +168,6 @@ def _normalize_published_at(published_at) -> str | None:
             except Exception:
                 pass
 
-        # YYYY-MM-DD HH:MM (không có giây)
         m = re.match(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})$", raw)
         if m:
             try:
@@ -209,11 +184,6 @@ def _normalize_published_at(published_at) -> str | None:
 
     print(f"  ⚠️  published_at kiểu không hợp lệ: {type(published_at)} → lưu NULL")
     return None
-
-
-# ========================
-# CRAWLER SERVICE
-# ========================
 
 
 def get_or_create_source(
@@ -270,7 +240,6 @@ def save_raw_article(
         raw_id = generate_id()
         content_hash = generate_hash(link + (content or ""))
 
-        # ── Chuẩn hóa published_at ──
         pub_at_val = _normalize_published_at(published_at)
 
         cursor.execute(
@@ -300,13 +269,7 @@ def save_raw_article(
         conn.close()
 
 
-# save_raw_article_v2 giờ chỉ là alias để tránh breaking change nếu có nơi nào import
 save_raw_article_v2 = save_raw_article
-
-
-# ========================
-# PROCESSOR SERVICE
-# ========================
 
 
 def get_unprocessed_articles(limit: int = 20) -> list:
@@ -542,11 +505,6 @@ def save_processed_article(
         conn.close()
 
 
-# ========================
-# API GATEWAY
-# ========================
-
-
 def get_all_processed_articles(limit: int = None) -> list:
     conn = get_connection()
     if not conn:
@@ -671,11 +629,6 @@ def filter_articles(
     finally:
         cursor.close()
         conn.close()
-
-
-# ========================
-# STATS HELPERS
-# ========================
 
 
 def get_stats_by_disease(limit: int = 20) -> list:

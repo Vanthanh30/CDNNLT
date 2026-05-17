@@ -50,11 +50,6 @@ def init_db():
         print("Kết nối database disease_management thành công")
 
 
-# =========================
-# CRAWLER SERVICE
-# =========================
-
-
 def get_or_create_source(name="Unknown", source_type="News Website"):
     conn = get_connection()
     if not conn:
@@ -133,11 +128,6 @@ def save_raw_article(title, link, content, source_name="Unknown", published_at=N
     finally:
         cursor.close()
         conn.close()
-
-
-# =========================
-# PROCESSOR SERVICE
-# =========================
 
 
 def get_unprocessed_articles(limit=10):
@@ -335,11 +325,6 @@ def save_processed_article(
         conn.close()
 
 
-# =========================
-# API GATEWAY
-# =========================
-
-
 def get_all_processed_articles(limit=None):
     conn = get_connection()
     if not conn:
@@ -446,8 +431,6 @@ def filter_articles(
     if location:
         query += " AND rg.name LIKE %s"
         params.append(f"%{location}%")
-
-    # ✅ Fix: lọc theo processed_at thay vì event_date (event_date có thể null)
     if from_date:
         query += " AND DATE(a.processed_at) >= %s"
         params.append(from_date)

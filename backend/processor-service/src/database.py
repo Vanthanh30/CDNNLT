@@ -6,9 +6,6 @@ from mysql.connector import Error
 from datetime import date, datetime
 from mysql.connector import Error
 
-# ========================
-# CONFIG
-# ========================
 DB_HOST = "localhost"
 DB_PORT = 3306
 DB_USER = "root"
@@ -16,16 +13,10 @@ DB_PASSWORD = "123456"
 DB_NAME = "disease_management"
 
 
-# ── Import VALID sets từ nlp_engine để validate trước khi lưu DB ──
 def _get_valid_sets():
     from nlp_engine import VALID_LOCATIONS, VALID_DISEASES
 
     return VALID_LOCATIONS, VALID_DISEASES
-
-
-# ========================
-# HELPERS
-# ========================
 
 
 def generate_id() -> str:
@@ -49,9 +40,9 @@ def get_connection(retries: int = 5, delay: int = 2):
                 use_unicode=True,
             )
         except Error as e:
-            print(f"⚠️  Thử lại kết nối {attempt + 1}/{retries}: {e}")
+            print(f"Thử lại kết nối {attempt + 1}/{retries}: {e}")
             time.sleep(delay)
-    print("❌ Không thể kết nối MySQL")
+    print("Không thể kết nối MySQL")
     return None
 
 
@@ -59,19 +50,12 @@ def init_db():
     conn = get_connection()
     if conn:
         conn.close()
-        print("✅ Kết nối database disease_management thành công")
+        print("Kết nối database disease_management thành công")
     else:
         raise RuntimeError("Không kết nối được MySQL!")
 
 
-# ========================
-# DATE HELPER
-# ========================
-
-# ── Cửa sổ thời gian hợp lệ ──
-# Cào 10 năm (2016-01-01 → hôm nay) để phục vụ tính năng lọc theo ngày/tháng/năm.
-# Chặn cứng bài trước 2016 và bài tương lai (lỗi timezone).
-_DB_DATE_MIN = datetime(2016, 1, 1)  # 10 năm về trước tính từ 2026
+_DB_DATE_MIN = datetime(2016, 1, 1)
 
 
 def _is_date_valid_for_db(dt: datetime) -> bool:
@@ -109,28 +93,23 @@ def _normalize_published_at(published_at) -> str | None:
     if published_at is None or published_at == "":
         return None
 
-    # datetime object
     if isinstance(published_at, datetime):
         if not _is_date_valid_for_db(published_at):
-            print(f"  ⚠️  published_at ngoài khoảng hợp lệ: {published_at} → lưu NULL")
+            print(f"  published_at ngoài khoảng hợp lệ: {published_at} → lưu NULL")
             return None
         return published_at.strftime("%Y-%m-%d %H:%M:%S")
 
-    # date object
     if isinstance(published_at, date):
         dt = datetime(published_at.year, published_at.month, published_at.day)
         if not _is_date_valid_for_db(dt):
-            print(f"  ⚠️  published_at ngoài khoảng hợp lệ: {published_at} → lưu NULL")
+            print(f"  published_at ngoài khoảng hợp lệ: {published_at} → lưu NULL")
             return None
         return published_at.strftime("%Y-%m-%d") + " 00:00:00"
 
-    # String — thử các format phổ biến
     if isinstance(published_at, str):
         raw = published_at.strip()
         if not raw:
             return None
-
-        # Đã đúng format MySQL — vẫn PHẢI validate khoảng ngày
         import re
 
         if re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$", raw):
@@ -142,8 +121,6 @@ def _normalize_published_at(published_at) -> str | None:
                 return raw
             except Exception:
                 return None
-
-        # ISO 8601: 2026-05-09T10:30:00+07:00 hoặc ...Z
         try:
             dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
             dt = dt.replace(tzinfo=None)
@@ -153,32 +130,27 @@ def _normalize_published_at(published_at) -> str | None:
             return dt.strftime("%Y-%m-%d %H:%M:%S")
         except Exception:
             pass
-
-        # RFC 2822: Fri, 09 May 2026 10:30:00 +0700
         try:
             from email.utils import parsedate_to_datetime
 
             dt = parsedate_to_datetime(raw).replace(tzinfo=None)
             if not _is_date_valid_for_db(dt):
-                print(f"  ⚠️  published_at ngoài khoảng: {raw} → lưu NULL")
+                print(f"  published_at ngoài khoảng: {raw} → lưu NULL")
                 return None
             return dt.strftime("%Y-%m-%d %H:%M:%S")
         except Exception:
             pass
-
-        # Chỉ có ngày YYYY-MM-DD
         m = re.match(r"^(\d{4}-\d{2}-\d{2})$", raw)
         if m:
             try:
                 dt = datetime.strptime(m.group(1), "%Y-%m-%d")
                 if not _is_date_valid_for_db(dt):
-                    print(f"  ⚠️  published_at ngoài khoảng: {raw} → lưu NULL")
+                    print(f"  published_at ngoài khoảng: {raw} → lưu NULL")
                     return None
                 return m.group(1) + " 00:00:00"
             except Exception:
                 pass
 
-        # DD/MM/YYYY
         m = re.match(r"^(\d{2})/(\d{2})/(\d{4})$", raw)
         if m:
             try:
@@ -186,34 +158,28 @@ def _normalize_published_at(published_at) -> str | None:
                     f"{m.group(3)}-{m.group(2)}-{m.group(1)}", "%Y-%m-%d"
                 )
                 if not _is_date_valid_for_db(dt):
-                    print(f"  ⚠️  published_at ngoài khoảng: {raw} → lưu NULL")
+                    print(f"  published_at ngoài khoảng: {raw} → lưu NULL")
                     return None
                 return f"{m.group(3)}-{m.group(2)}-{m.group(1)} 00:00:00"
             except Exception:
                 pass
 
-        # YYYY-MM-DD HH:MM (không có giây)
         m = re.match(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})$", raw)
         if m:
             try:
                 dt = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M")
                 if not _is_date_valid_for_db(dt):
-                    print(f"  ⚠️  published_at ngoài khoảng: {raw} → lưu NULL")
+                    print(f"  published_at ngoài khoảng: {raw} → lưu NULL")
                     return None
                 return m.group(1) + ":00"
             except Exception:
                 pass
 
-        print(f"  ⚠️  Không parse được published_at: '{raw}' → lưu NULL")
+        print(f"  Không parse được published_at: '{raw}' → lưu NULL")
         return None
 
-    print(f"  ⚠️  published_at kiểu không hợp lệ: {type(published_at)} → lưu NULL")
+    print(f"  published_at kiểu không hợp lệ: {type(published_at)} → lưu NULL")
     return None
-
-
-# ========================
-# CRAWLER SERVICE
-# ========================
 
 
 def get_or_create_source(
@@ -269,8 +235,6 @@ def save_raw_article(
         source_id = get_or_create_source(source_name, "News Website")
         raw_id = generate_id()
         content_hash = generate_hash(link + (content or ""))
-
-        # ── Chuẩn hóa published_at ──
         pub_at_val = _normalize_published_at(published_at)
 
         cursor.execute(
@@ -285,14 +249,14 @@ def save_raw_article(
         conn.commit()
 
         date_info = f"published_at={pub_at_val}" if pub_at_val else "published_at=NULL"
-        print(f"  ✅ RAW_ARTICLE [{date_info}]: {(title or '')[:60]}...")
+        print(f"  RAW_ARTICLE [{date_info}]: {(title or '')[:60]}...")
         return True
 
     except Error as e:
         if "Duplicate entry" in str(e):
-            print("  ℹ️  Bài đã tồn tại, bỏ qua.")
+            print("  Bài đã tồn tại, bỏ qua.")
         else:
-            print(f"  ❌ Lỗi lưu RAW_ARTICLE: {e}")
+            print(f"  Lỗi lưu RAW_ARTICLE: {e}")
         return False
 
     finally:
@@ -316,16 +280,11 @@ def delete_raw_article(raw_article_id: str) -> bool:
         return cursor.rowcount > 0
     except Error as e:
         conn.rollback()
-        print(f"❌ delete_raw_article: {e}")
+        print(f"delete_raw_article: {e}")
         return False
     finally:
         cursor.close()
         conn.close()
-
-
-# ========================
-# PROCESSOR SERVICE
-# ========================
 
 
 def get_unprocessed_articles(limit: int = 20) -> list:
@@ -360,13 +319,13 @@ def get_or_create_disease(name: str) -> str | None:
     name = (name or "").strip()
 
     if not name or name == "Không xác định":
-        print(f"  ⚠️  Từ chối lưu disease rỗng/không xác định")
+        print(f"  Từ chối lưu disease rỗng/không xác định")
         return None
 
     try:
         valid_locations, valid_diseases = _get_valid_sets()
         if name not in valid_diseases:
-            print(f"  ⚠️  Từ chối lưu disease không hợp lệ: '{name}'")
+            print(f"  Từ chối lưu disease không hợp lệ: '{name}'")
             return None
     except Exception:
         pass
@@ -391,7 +350,7 @@ def get_or_create_disease(name: str) -> str | None:
         return disease_id
 
     except Error as e:
-        print(f"❌ get_or_create_disease: {e}")
+        print(f"get_or_create_disease: {e}")
         return None
 
     finally:
@@ -406,13 +365,13 @@ def get_or_create_region(name: str) -> str | None:
     name = (name or "").strip()
 
     if not name or name == "Không xác định":
-        print(f"  ⚠️  Từ chối lưu region rỗng/không xác định")
+        print(f"  Từ chối lưu region rỗng/không xác định")
         return None
 
     try:
         valid_locations, valid_diseases = _get_valid_sets()
         if name not in valid_locations:
-            print(f"  ⚠️  Từ chối lưu region không hợp lệ: '{name}'")
+            print(f"  Từ chối lưu region không hợp lệ: '{name}'")
             return None
     except Exception:
         pass
@@ -437,7 +396,7 @@ def get_or_create_region(name: str) -> str | None:
         return region_id
 
     except Error as e:
-        print(f"❌ get_or_create_region: {e}")
+        print(f"get_or_create_region: {e}")
         return None
 
     finally:
@@ -471,7 +430,7 @@ def save_article_only(
 
     except Error as e:
         conn.rollback()
-        print(f"❌ save_article_only: {e}")
+        print(f"save_article_only: {e}")
         return False
 
     finally:
@@ -495,10 +454,10 @@ def save_processed_article(
     region_id = get_or_create_region(location)
 
     if not disease_id:
-        print(f"  ❌ Không lưu: disease_id = None ('{disease_name}')")
+        print(f"  Không lưu: disease_id = None ('{disease_name}')")
         return False
     if not region_id:
-        print(f"  ❌ Không lưu: region_id = None ('{location}')")
+        print(f"  Không lưu: region_id = None ('{location}')")
         return False
 
     conn = get_connection()
@@ -553,17 +512,12 @@ def save_processed_article(
 
     except Error as e:
         conn.rollback()
-        print(f"❌ save_processed_article: {e}")
+        print(f"save_processed_article: {e}")
         return False
 
     finally:
         cursor.close()
         conn.close()
-
-
-# ========================
-# API GATEWAY
-# ========================
 
 
 def get_all_processed_articles(limit: int = 100) -> list:
@@ -687,11 +641,6 @@ def filter_articles(
     finally:
         cursor.close()
         conn.close()
-
-
-# ========================
-# STATS HELPERS
-# ========================
 
 
 def get_stats_by_disease(limit: int = 20) -> list:

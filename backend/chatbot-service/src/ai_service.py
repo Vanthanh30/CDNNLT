@@ -1,17 +1,28 @@
 from openai import OpenAI
-from src.config import OPENAI_API_KEY
+from src.config import OPENAI_API_KEY, OPENAI_MODEL
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 
 def is_epidemic_question(question: str) -> bool:
     q = question.lower()
 
     epidemic_words = [
-        "dịch", "dịch bệnh", "virus", "vi khuẩn", "ca nhiễm",
-        "sốt xuất huyết", "cúm", "covid", "sởi",
-        "dịch tả lợn", "cúm gia cầm", "lở mồm long móng",
-        "sâu bệnh", "dịch hại", "bệnh cây trồng"
+        "dịch",
+        "dịch bệnh",
+        "virus",
+        "vi khuẩn",
+        "ca nhiễm",
+        "sốt xuất huyết",
+        "cúm",
+        "covid",
+        "sởi",
+        "dịch tả lợn",
+        "cúm gia cầm",
+        "lở mồm long móng",
+        "sâu bệnh",
+        "dịch hại",
+        "bệnh cây trồng",
     ]
 
     return any(word in q for word in epidemic_words)
@@ -40,6 +51,9 @@ def build_context(rows):
 
 
 def ask_ai(question: str, rows):
+    if client is None:
+        return "Chatbot chưa được cấu hình OPENAI_API_KEY hoặc CHATBOT_OPENAI_API_KEY."
+
     context = build_context(rows)
     epidemic = is_epidemic_question(question)
 
@@ -74,12 +88,12 @@ Trả lời bằng tiếng Việt, ngắn gọn.
         user_prompt = question
 
     res = client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model=OPENAI_MODEL,
         messages=[
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
+            {"role": "user", "content": user_prompt},
         ],
-        temperature=0.4
+        temperature=0.4,
     )
 
     return res.choices[0].message.content

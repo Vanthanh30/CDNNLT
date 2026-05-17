@@ -28,11 +28,6 @@ SLEEP_EMPTY = 60
 SLEEP_NORMAL = 5
 
 
-# ========================
-# TEXT CLEANING
-# ========================
-
-
 def clean_content(text: str) -> str:
     if not text:
         return ""
@@ -73,11 +68,6 @@ def parse_event_date(published_at) -> str | None:
     return datetime.now().strftime("%Y-%m-%d")
 
 
-# ========================
-# XỬ LÝ 1 BÀI
-# ========================
-
-
 def _process_one(art: dict) -> dict:
     """
     Xử lý NLP cho 1 bài.
@@ -114,24 +104,15 @@ def _process_one(art: dict) -> dict:
         }
 
 
-# ========================
-# PROCESS BATCH
-# ========================
-
-
 def process_batch(limit: int = BATCH_SIZE) -> int:
 
     articles = get_unprocessed_articles(limit=limit)
 
     if not articles:
-        print("😴 Không có bài chưa xử lý.")
+        print("Không có bài chưa xử lý.")
         return 0
 
-    print(f"\n📋 Xử lý {len(articles)} bài (NLP song song {NLP_WORKERS} workers)...")
-
-    # ====================
-    # NLP SONG SONG
-    # ====================
+    print(f"\nXử lý {len(articles)} bài (NLP song song {NLP_WORKERS} workers)...")
 
     nlp_results = []
 
@@ -141,15 +122,9 @@ def process_batch(limit: int = BATCH_SIZE) -> int:
         for future in as_completed(futures):
             nlp_results.append(future.result())
 
-    # giữ thứ tự gốc
     order = {art["id"]: i for i, art in enumerate(articles)}
 
     nlp_results.sort(key=lambda r: order.get(r["raw_id"], 999))
-
-    # ====================
-    # SAVE DB TUẦN TỰ
-    # ====================
-
     success = 0
     partial = 0
     rejected = 0
@@ -159,24 +134,19 @@ def process_batch(limit: int = BATCH_SIZE) -> int:
         raw_id = r["raw_id"]
         title = r.get("title", "")
 
-        print(f"\n🧠 [{raw_id[:8]}...] {title[:70]}")
+        print(f"\n[{raw_id[:8]}...] {title[:70]}")
 
-        # lỗi NLP
         if r.get("error"):
-            print(f"  ❌ NLP Error: {r['error']}")
+            print(f"  NLP Error: {r['error']}")
             failed += 1
             continue
 
         try:
-            # ====================
-            # AI FILTER
-            # ====================
-
             ai_result = classify_article(title, r["content_clean"])
 
             if not ai_result["is_relevant"]:
                 print(
-                    "  🤖 AI loại bài không liên quan dịch bệnh: "
+                    "  AI loại bài không liên quan dịch bệnh: "
                     f"{ai_result.get('method', 'unknown')} | "
                     f"{ai_result.get('reason', 'không phù hợp')} "
                     f"(confidence={ai_result.get('confidence', 0):.2f})"
@@ -184,42 +154,33 @@ def process_batch(limit: int = BATCH_SIZE) -> int:
 
                 if delete_raw_article(raw_id):
                     rejected += 1
-                    print("  🗑️ Đã xóa RAW_ARTICLE khỏi hàng đợi")
+                    print("  Đã xóa RAW_ARTICLE khỏi hàng đợi")
 
                 else:
                     failed += 1
-                    print("  ❌ Không xóa được RAW_ARTICLE")
+                    print("  Không xóa được RAW_ARTICLE")
 
                 continue
-
-            # ====================
-            # NLP RESULT
-            # ====================
-
             result = r["result"]
 
             print(
-                f"  🦠 Bệnh    : {result['disease_name']} "
-                f"({'✅' if result['disease_valid'] else '❌'})"
+                f"  Bệnh    : {result['disease_name']} "
+                f"({'' if result['disease_valid'] else ''})"
             )
 
             print(
-                f"  📍 Địa điểm: {result['location']} "
-                f"({'✅' if result['location_valid'] else '❌'})"
+                f"  Địa điểm: {result['location']} "
+                f"({'' if result['location_valid'] else ''})"
             )
 
-            print(f"  👥 Nhóm    : {result['group']}")
-            print(f"  ⚠️  Rủi ro  : {result['risk_level']}")
+            print(f"  Nhóm    : {result['group']}")
+            print(f"    Rủi ro  : {result['risk_level']}")
 
             print(
-                f"  🤒 Nhiễm   : {result['cases']} | "
+                f"  Nhiễm   : {result['cases']} | "
                 f"Chết: {result['cases_dead']} | "
                 f"Khỏi: {result['cases_recovered']}"
             )
-
-            # ====================
-            # ARTICLE ONLY
-            # ====================
 
             if not result["disease_valid"] or not result["location_valid"]:
                 ok = save_article_only(
@@ -230,17 +191,13 @@ def process_batch(limit: int = BATCH_SIZE) -> int:
 
                 if ok:
                     partial += 1
-                    print("  ℹ️ ARTICLE-only (không có event)")
+                    print("  ARTICLE-only (không có event)")
 
                 else:
                     failed += 1
-                    print("  ❌ Lưu ARTICLE-only thất bại")
+                    print("   Lưu ARTICLE-only thất bại")
 
                 continue
-
-            # ====================
-            # VALID EVENT
-            # ====================
 
             locations = [
                 loc
@@ -263,33 +220,29 @@ def process_batch(limit: int = BATCH_SIZE) -> int:
 
             if ok:
                 success += 1
-                print("  ✅ Lưu thành công")
+                print("  Lưu thành công")
 
             else:
                 failed += 1
-                print("  ❌ Lưu thất bại")
+                print("  Lưu thất bại")
 
         except Exception as e:
-            print(f"  ❌ Lỗi xử lý: {e}")
+            print(f"  Lỗi xử lý: {e}")
             failed += 1
 
     print(
-        f"\n📊 Kết quả batch:"
-        f"\n   ✅ {success} đầy đủ"
-        f"\n   ℹ️ {partial} article-only"
-        f"\n   🗑️ {rejected} bị loại"
-        f"\n   ❌ {failed} lỗi"
+        f"\nKết quả batch:"
+        f"\n   {success} đầy đủ"
+        f"\n   {partial} article-only"
+        f"\n   {rejected} bị loại"
+        f"\n   {failed} lỗi"
     )
 
     return success + partial + rejected
 
 
-# ========================
-# ENTRY POINT
-# ========================
-
 if __name__ == "__main__":
-    print("🚀 Processor Service khởi động...")
+    print("Processor Service khởi động...")
 
     init_db()
 
@@ -299,7 +252,7 @@ if __name__ == "__main__":
     while True:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        print(f"\n⚙️ [{now}] Bắt đầu xử lý batch...")
+        print(f"\n[{now}] Bắt đầu xử lý batch...")
 
         processed = process_batch(limit=BATCH_SIZE)
 

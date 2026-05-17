@@ -10,10 +10,6 @@ import re
 import unicodedata
 
 
-# ============================================================
-# NORMALIZE
-# ============================================================
-
 def normalize(text: str) -> str:
     if not text:
         return ""
@@ -28,21 +24,13 @@ def _wm(keyword: str, text: str) -> bool:
     VD: "an giang" không match trong "an toàn giang hồ" nếu có space boundary.
     """
     escaped = re.escape(keyword)
-    # Tiếng Việt không có \b chuẩn, ta dùng space / start / end / punctuation
-    pattern = r"(?:^|[\s,.\-/\(\)\[\]:;\"'])" + escaped + r"(?=$|[\s,.\-/\(\)\[\]:;\"'])"
+    pattern = (
+        r"(?:^|[\s,.\-/\(\)\[\]:;\"'])" + escaped + r"(?=$|[\s,.\-/\(\)\[\]:;\"'])"
+    )
     return bool(re.search(pattern, text))
 
 
-# ============================================================
-# WHITELIST 63 TỈNH/THÀNH VIỆT NAM (STRICT)
-# Quy tắc:
-#   - Key = dạng thường hóa (lowercase, có dấu)
-#   - Value = tên chuẩn dùng lưu DB
-#   - KHÔNG có "vùng biên giới", "bộ y tế", "trung quốc", v.v.
-# ============================================================
-
 PROVINCE_MAP: dict[str, str] = {
-    # Miền Bắc
     "hà nội": "Hà Nội",
     "hải phòng": "Hải Phòng",
     "quảng ninh": "Quảng Ninh",
@@ -68,7 +56,6 @@ PROVINCE_MAP: dict[str, str] = {
     "điện biên": "Điện Biên",
     "lai châu": "Lai Châu",
     "hòa bình": "Hòa Bình",
-    # Miền Trung
     "thanh hóa": "Thanh Hóa",
     "nghệ an": "Nghệ An",
     "hà tĩnh": "Hà Tĩnh",
@@ -86,13 +73,11 @@ PROVINCE_MAP: dict[str, str] = {
     "khánh hòa": "Khánh Hòa",
     "ninh thuận": "Ninh Thuận",
     "bình thuận": "Bình Thuận",
-    # Tây Nguyên
     "kon tum": "Kon Tum",
     "gia lai": "Gia Lai",
     "đắk lắk": "Đắk Lắk",
     "đắk nông": "Đắk Nông",
     "lâm đồng": "Lâm Đồng",
-    # Miền Nam
     "tp hcm": "TP. Hồ Chí Minh",
     "tp.hcm": "TP. Hồ Chí Minh",
     "tphcm": "TP. Hồ Chí Minh",
@@ -119,8 +104,6 @@ PROVINCE_MAP: dict[str, str] = {
     "cà mau": "Cà Mau",
 }
 
-# Các alias phụ (thành phố / địa danh nổi tiếng → tỉnh tương ứng)
-# Chú ý: alias ngắn như "huế", "nha trang" dễ match nhầm nên cần _wm chặt
 CITY_ALIAS_MAP: dict[str, str] = {
     "nha trang": "Khánh Hòa",
     "phan thiết": "Bình Thuận",
@@ -134,23 +117,17 @@ CITY_ALIAS_MAP: dict[str, str] = {
     "phú quốc": "Kiên Giang",
     "long xuyên": "An Giang",
     "châu đốc": "An Giang",
-    # Huế phải đi kèm context để tránh match nhầm "huế" trong từ khác
     "tỉnh huế": "Thừa Thiên Huế",
     "thành phố huế": "Thừa Thiên Huế",
     "tp huế": "Thừa Thiên Huế",
     "sài gòn": "TP. Hồ Chí Minh",
 }
-
-# Tất cả keys, sắp xếp dài → ngắn để match greedy
 _ALL_LOCATION_KEYS = sorted(
-    list(PROVINCE_MAP.keys()) + list(CITY_ALIAS_MAP.keys()),
-    key=len, reverse=True
+    list(PROVINCE_MAP.keys()) + list(CITY_ALIAS_MAP.keys()), key=len, reverse=True
 )
 
-# Set các giá trị hợp lệ (dùng để validate)
 VALID_LOCATIONS: set[str] = set(PROVINCE_MAP.values()) | set(CITY_ALIAS_MAP.values())
 
-# ── Các từ BLACKLIST: nếu match một trong đây → BỎ QUA, không lưu region ──
 _LOCATION_BLACKLIST_PATTERNS = [
     r"bộ y tế",
     r"bộ nông nghiệp",
@@ -220,39 +197,57 @@ def is_valid_location(name: str) -> bool:
     )
 
 
-# ============================================================
-# WHITELIST BỆNH (STRICT — không có fallback regex)
-# ============================================================
-
 KNOWN_DISEASE_MAP: dict[str, str] = {
-    # ── Người ──
-    "covid-19": "COVID-19", "covid": "COVID-19", "sars-cov-2": "COVID-19",
-    "sars": "SARS", "mers": "MERS",
-    "cúm a/h5n1": "Cúm A/H5N1", "cúm h5n1": "Cúm A/H5N1", "h5n1": "Cúm A/H5N1",
-    "cúm a/h1n1": "Cúm A/H1N1", "cúm h1n1": "Cúm A/H1N1",
-    "cúm a/h3n2": "Cúm A/H3N2", "cúm h3n2": "Cúm A/H3N2",
-    "cúm a": "Cúm A", "cúm b": "Cúm B", "cúm mùa": "Cúm mùa",
+    "covid-19": "COVID-19",
+    "covid": "COVID-19",
+    "sars-cov-2": "COVID-19",
+    "sars": "SARS",
+    "mers": "MERS",
+    "cúm a/h5n1": "Cúm A/H5N1",
+    "cúm h5n1": "Cúm A/H5N1",
+    "h5n1": "Cúm A/H5N1",
+    "cúm a/h1n1": "Cúm A/H1N1",
+    "cúm h1n1": "Cúm A/H1N1",
+    "cúm a/h3n2": "Cúm A/H3N2",
+    "cúm h3n2": "Cúm A/H3N2",
+    "cúm a": "Cúm A",
+    "cúm b": "Cúm B",
+    "cúm mùa": "Cúm mùa",
     "sốt xuất huyết": "Sốt xuất huyết",
     "dengue": "Sốt xuất huyết Dengue",
     "tay chân miệng": "Tay chân miệng",
-    "sởi": "Sởi", "rubella": "Rubella",
+    "sởi": "Sởi",
+    "rubella": "Rubella",
     "thủy đậu": "Thủy đậu",
     "viêm não nhật bản": "Viêm não Nhật Bản",
-    "bệnh dại": "Bệnh dại", "dại": "Bệnh dại",
-    "bạch hầu": "Bạch hầu", "ho gà": "Ho gà",
-    "uốn ván": "Uốn ván", "bại liệt": "Bại liệt",
-    "lao phổi": "Lao phổi", "bệnh lao": "Lao",
-    "viêm gan a": "Viêm gan A", "viêm gan b": "Viêm gan B", "viêm gan c": "Viêm gan C",
-    "hiv/aids": "HIV/AIDS", "hiv": "HIV/AIDS", "aids": "HIV/AIDS",
-    "ebola": "Ebola", "zika": "Zika",
-    "đậu mùa khỉ": "Đậu mùa khỉ (Mpox)", "mpox": "Đậu mùa khỉ (Mpox)",
+    "bệnh dại": "Bệnh dại",
+    "dại": "Bệnh dại",
+    "bạch hầu": "Bạch hầu",
+    "ho gà": "Ho gà",
+    "uốn ván": "Uốn ván",
+    "bại liệt": "Bại liệt",
+    "lao phổi": "Lao phổi",
+    "bệnh lao": "Lao",
+    "viêm gan a": "Viêm gan A",
+    "viêm gan b": "Viêm gan B",
+    "viêm gan c": "Viêm gan C",
+    "hiv/aids": "HIV/AIDS",
+    "hiv": "HIV/AIDS",
+    "aids": "HIV/AIDS",
+    "ebola": "Ebola",
+    "zika": "Zika",
+    "đậu mùa khỉ": "Đậu mùa khỉ (Mpox)",
+    "mpox": "Đậu mùa khỉ (Mpox)",
     "đậu mùa": "Đậu mùa",
     "liên cầu lợn": "Liên cầu lợn",
-    "whitmore": "Whitmore (Melioidosis)", "melioidosis": "Whitmore (Melioidosis)",
+    "whitmore": "Whitmore (Melioidosis)",
+    "melioidosis": "Whitmore (Melioidosis)",
     "adenovirus": "Adenovirus",
-    "dịch tả": "Tả", "bệnh tả": "Tả",
+    "dịch tả": "Tả",
+    "bệnh tả": "Tả",
     "tiêu chảy cấp": "Tiêu chảy cấp",
-    "thương hàn": "Thương hàn", "kiết lỵ": "Kiết lỵ",
+    "thương hàn": "Thương hàn",
+    "kiết lỵ": "Kiết lỵ",
     "sốt rét": "Sốt rét",
     "sốt mò": "Sốt mò",
     "viêm phổi cộng đồng": "Viêm phổi cộng đồng",
@@ -266,7 +261,6 @@ KNOWN_DISEASE_MAP: dict[str, str] = {
     "viêm kết mạc": "Viêm kết mạc",
     "sán lá gan": "Sán lá gan",
     "giun sán": "Giun sán",
-    # ── Động vật ──
     "dịch tả lợn châu phi": "Dịch tả lợn Châu Phi (ASF)",
     "dịch tả lợn": "Dịch tả lợn Châu Phi (ASF)",
     "asf": "Dịch tả lợn Châu Phi (ASF)",
@@ -280,9 +274,9 @@ KNOWN_DISEASE_MAP: dict[str, str] = {
     "gumboro": "Gumboro",
     "nhiệt thán": "Nhiệt thán",
     "leptospirosis": "Leptospirosis",
-    "brucellosis": "Brucella", "brucella": "Brucella",
+    "brucellosis": "Brucella",
+    "brucella": "Brucella",
     "dịch hạch": "Dịch hạch",
-    # ── Cây trồng ──
     "bệnh đạo ôn": "Bệnh đạo ôn (lúa)",
     "đạo ôn": "Bệnh đạo ôn (lúa)",
     "bệnh bạc lá": "Bệnh bạc lá (lúa)",
@@ -315,19 +309,28 @@ KNOWN_DISEASE_MAP: dict[str, str] = {
     "nấm hồng": "Bệnh nấm hồng",
 }
 
-# Keys sắp xếp dài → ngắn để ưu tiên match dài nhất (greedy)
 _DISEASE_KEYS_SORTED = sorted(KNOWN_DISEASE_MAP.keys(), key=len, reverse=True)
 
-# Set để validate output
 VALID_DISEASES: set[str] = set(KNOWN_DISEASE_MAP.values())
 
-# ── Blacklist: nếu text chứa các cụm này mà KHÔNG có tên bệnh cụ thể → trả về "Không xác định" ──
 _DISEASE_BLACKLIST = {
-    "không xác định", "truyền nhiễm", "dịch bệnh", "bệnh dịch",
-    "phòng chống", "kiểm soát dịch", "phòng ngừa",
-    "vaccine", "vắc xin", "tiêm chủng", "tiêm phòng",
-    "ung thư", "tim mạch", "huyết áp", "tiểu đường",
-    "béo phì", "suy dinh dưỡng",
+    "không xác định",
+    "truyền nhiễm",
+    "dịch bệnh",
+    "bệnh dịch",
+    "phòng chống",
+    "kiểm soát dịch",
+    "phòng ngừa",
+    "vaccine",
+    "vắc xin",
+    "tiêm chủng",
+    "tiêm phòng",
+    "ung thư",
+    "tim mạch",
+    "huyết áp",
+    "tiểu đường",
+    "béo phì",
+    "suy dinh dưỡng",
 }
 
 
@@ -338,7 +341,6 @@ def detect_disease(text: str) -> str:
     """
     t = normalize(text)
 
-    # Whitelist — ưu tiên key dài nhất
     for key in _DISEASE_KEYS_SORTED:
         if _wm(key, t):
             return KNOWN_DISEASE_MAP[key]
@@ -347,24 +349,35 @@ def detect_disease(text: str) -> str:
 
 
 def is_valid_disease(name: str) -> bool:
-    return (
-        bool(name)
-        and name != "Không xác định"
-        and name in VALID_DISEASES
-    )
+    return bool(name) and name != "Không xác định" and name in VALID_DISEASES
 
-
-# ============================================================
-# KEYWORDS TRIGGER
-# ============================================================
 
 KEYWORDS_LIST = [
-    "dịch bệnh", "ổ dịch", "ca nhiễm", "ca mắc", "ca tử vong",
-    "lây nhiễm", "bùng phát", "truyền nhiễm", "cách ly",
-    "virus", "vi khuẩn", "vi rút", "phòng dịch",
-    "dịch tả lợn", "cúm gia cầm", "lở mồm long móng", "tai xanh",
-    "dịch bệnh gia súc", "dịch bệnh gia cầm", "tiêu hủy đàn",
-    "dịch hại", "sâu bệnh", "bệnh hại", "rầy nâu", "đạo ôn",
+    "dịch bệnh",
+    "ổ dịch",
+    "ca nhiễm",
+    "ca mắc",
+    "ca tử vong",
+    "lây nhiễm",
+    "bùng phát",
+    "truyền nhiễm",
+    "cách ly",
+    "virus",
+    "vi khuẩn",
+    "vi rút",
+    "phòng dịch",
+    "dịch tả lợn",
+    "cúm gia cầm",
+    "lở mồm long móng",
+    "tai xanh",
+    "dịch bệnh gia súc",
+    "dịch bệnh gia cầm",
+    "tiêu hủy đàn",
+    "dịch hại",
+    "sâu bệnh",
+    "bệnh hại",
+    "rầy nâu",
+    "đạo ôn",
 ]
 
 
@@ -372,10 +385,6 @@ def detect_keywords(text: str) -> list[str]:
     t = normalize(text)
     return list(set(k for k in KEYWORDS_LIST if k in t))
 
-
-# ============================================================
-# EXTRACT NUMBERS
-# ============================================================
 
 CASE_PATTERNS = [
     r"(\d[\d\.]*)\s*ca\s+(?:nhiễm|mắc|dương tính|bệnh)",
@@ -395,9 +404,20 @@ RECOVERED_PATTERNS = [
 ]
 
 CASE_CUMULATIVE_CONTEXT = [
-    "lũy kế", "cộng dồn", "từ đầu năm", "từ đầu mùa", "từ đầu dịch",
-    "trong năm", "năm nay", "cả năm", "hằng năm", "mỗi năm",
-    "so với cùng kỳ", "cùng kỳ", "toàn quốc", "cả nước",
+    "lũy kế",
+    "cộng dồn",
+    "từ đầu năm",
+    "từ đầu mùa",
+    "từ đầu dịch",
+    "trong năm",
+    "năm nay",
+    "cả năm",
+    "hằng năm",
+    "mỗi năm",
+    "so với cùng kỳ",
+    "cùng kỳ",
+    "toàn quốc",
+    "cả nước",
 ]
 
 DISEASE_WEEKLY_CASE_CAPS = {
@@ -438,7 +458,9 @@ def _case_cap_for(disease_name: str, group: str) -> int:
     return GROUP_WEEKLY_CASE_CAPS.get(group or "human", 10000)
 
 
-def extract_cases(text: str, disease_name: str = "Không xác định", group: str = "human") -> int:
+def extract_cases(
+    text: str, disease_name: str = "Không xác định", group: str = "human"
+) -> int:
     t = normalize(text)
     cap = _case_cap_for(disease_name, group)
 
@@ -475,32 +497,64 @@ def extract_recovered(text: str) -> int:
     return 0
 
 
-# ============================================================
-# CLASSIFY GROUP
-# ============================================================
-
 ANIMAL_KEYWORDS = [
-    "lợn", "heo", "gà", "vịt", "ngan", "bò", "trâu", "dê", "cừu",
-    "gia súc", "gia cầm", "thủy cầm", "thú nuôi",
-    "chăn nuôi", "đàn vật nuôi", "trang trại chăn nuôi",
-    "cúm gia cầm", "dịch tả lợn", "lở mồm long móng",
-    "thú y", "chi cục thú y", "tiêu hủy đàn",
+    "lợn",
+    "heo",
+    "gà",
+    "vịt",
+    "ngan",
+    "bò",
+    "trâu",
+    "dê",
+    "cừu",
+    "gia súc",
+    "gia cầm",
+    "thủy cầm",
+    "thú nuôi",
+    "chăn nuôi",
+    "đàn vật nuôi",
+    "trang trại chăn nuôi",
+    "cúm gia cầm",
+    "dịch tả lợn",
+    "lở mồm long móng",
+    "thú y",
+    "chi cục thú y",
+    "tiêu hủy đàn",
 ]
 PLANT_KEYWORDS = [
-    "lúa", "cây trồng", "sâu bệnh", "dịch hại", "bệnh hại",
-    "rầy nâu", "đạo ôn", "vườn cây", "hoa màu",
-    "cây ăn trái", "cây ăn quả", "rau màu",
-    "thuốc trừ sâu", "bảo vệ thực vật", "phun thuốc bảo vệ",
-    "xoài", "cam", "bưởi", "nhãn", "vải thiều",
-    "hồ tiêu", "cà phê", "cao su", "sầu riêng",
-    "cục bảo vệ thực vật", "chi cục bảo vệ thực vật",
+    "lúa",
+    "cây trồng",
+    "sâu bệnh",
+    "dịch hại",
+    "bệnh hại",
+    "rầy nâu",
+    "đạo ôn",
+    "vườn cây",
+    "hoa màu",
+    "cây ăn trái",
+    "cây ăn quả",
+    "rau màu",
+    "thuốc trừ sâu",
+    "bảo vệ thực vật",
+    "phun thuốc bảo vệ",
+    "xoài",
+    "cam",
+    "bưởi",
+    "nhãn",
+    "vải thiều",
+    "hồ tiêu",
+    "cà phê",
+    "cao su",
+    "sầu riêng",
+    "cục bảo vệ thực vật",
+    "chi cục bảo vệ thực vật",
 ]
 
 
 def classify_group(text: str) -> str:
     t = normalize(text)
     animal_score = sum(1 for k in ANIMAL_KEYWORDS if _wm(k, t))
-    plant_score  = sum(1 for k in PLANT_KEYWORDS  if _wm(k, t))
+    plant_score = sum(1 for k in PLANT_KEYWORDS if _wm(k, t))
     if animal_score == 0 and plant_score == 0:
         return "human"
     if animal_score >= plant_score:
@@ -508,14 +562,24 @@ def classify_group(text: str) -> str:
     return "plant"
 
 
-# ============================================================
-# RISK LEVEL
-# ============================================================
-
-HIGH_RISK_KEYWORDS   = ["bùng phát mạnh", "khẩn cấp", "đại dịch", "pandemic",
-                         "lây lan nhanh", "phong tỏa", "tử vong hàng loạt"]
-MEDIUM_RISK_KEYWORDS = ["bùng phát", "gia tăng", "lây lan", "cảnh báo",
-                         "nguy cơ", "xuất hiện ổ dịch", "phòng chống dịch"]
+HIGH_RISK_KEYWORDS = [
+    "bùng phát mạnh",
+    "khẩn cấp",
+    "đại dịch",
+    "pandemic",
+    "lây lan nhanh",
+    "phong tỏa",
+    "tử vong hàng loạt",
+]
+MEDIUM_RISK_KEYWORDS = [
+    "bùng phát",
+    "gia tăng",
+    "lây lan",
+    "cảnh báo",
+    "nguy cơ",
+    "xuất hiện ổ dịch",
+    "phòng chống dịch",
+]
 
 
 def classify_risk(text: str, cases: int = 0, dead: int = 0) -> str:
@@ -527,31 +591,27 @@ def classify_risk(text: str, cases: int = 0, dead: int = 0) -> str:
     return "LOW"
 
 
-# ============================================================
-# MAIN EXTRACT
-# ============================================================
-
 def extract_info(title: str, content: str) -> dict:
     full_text = f"{title or ''}. {content or ''}"
-    group     = classify_group(full_text)
-    disease   = detect_disease(full_text)
-    cases     = extract_cases(full_text, disease, group)
-    dead      = extract_dead(full_text)
+    group = classify_group(full_text)
+    disease = detect_disease(full_text)
+    cases = extract_cases(full_text, disease, group)
+    dead = extract_dead(full_text)
     recovered = extract_recovered(full_text)
-    risk      = classify_risk(full_text, cases, dead)
-    location  = detect_location(full_text)
-    all_locs  = detect_all_locations(full_text)
+    risk = classify_risk(full_text, cases, dead)
+    location = detect_location(full_text)
+    all_locs = detect_all_locations(full_text)
 
     return {
-        "keywords":        detect_keywords(full_text),
-        "disease_name":    disease,
-        "disease_valid":   is_valid_disease(disease),
-        "location":        location,
-        "location_valid":  is_valid_location(location),
-        "all_locations":   all_locs,
-        "cases":           cases,
-        "cases_dead":      dead,
+        "keywords": detect_keywords(full_text),
+        "disease_name": disease,
+        "disease_valid": is_valid_disease(disease),
+        "location": location,
+        "location_valid": is_valid_location(location),
+        "all_locations": all_locs,
+        "cases": cases,
+        "cases_dead": dead,
         "cases_recovered": recovered,
-        "group":           group,
-        "risk_level":      risk,
+        "group": group,
+        "risk_level": risk,
     }

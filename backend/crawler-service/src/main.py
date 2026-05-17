@@ -35,19 +35,9 @@ try:
 except Exception:
     pass
 
-# ========================
-# CONFIG (từ .env hoặc default)
-# ========================
 CRAWL_INTERVAL_MIN = int(os.getenv("CRAWL_INTERVAL_MIN", "30"))
-CONTENT_WORKERS = int(
-    os.getenv("CONTENT_WORKERS", "8")
-)  # thread để fetch content song song
-CRAWL_DAYS = int(os.getenv("CRAWL_DAYS", "30"))  # lấy bài trong N ngày gần nhất
-
-
-# ========================
-# KEYWORDS - 3 NHÓM
-# ========================
+CONTENT_WORKERS = int(os.getenv("CONTENT_WORKERS", "8"))
+CRAWL_DAYS = int(os.getenv("CRAWL_DAYS", "30"))
 
 KEYWORDS_HUMAN = [
     "dịch bệnh Việt Nam",
@@ -90,11 +80,6 @@ KEYWORDS_PLANT = [
 ]
 
 ALL_KEYWORDS = KEYWORDS_HUMAN + KEYWORDS_ANIMAL + KEYWORDS_PLANT
-
-
-# ========================
-# FILTER: chỉ lấy bài liên quan Việt Nam + dịch bệnh
-# ========================
 
 VIETNAM_WORDS = [
     "việt nam",
@@ -157,11 +142,6 @@ def is_valid_article(title: str, content: str) -> bool:
     return is_vn and is_epi
 
 
-# ========================
-# CRAWL TỪNG NGUỒN
-# ========================
-
-
 def crawl_all_links() -> list[dict]:
     """
     Bước 1: Thu thập danh sách link từ tất cả nguồn.
@@ -171,7 +151,6 @@ def crawl_all_links() -> list[dict]:
 
     print("\n📡 Crawling links từ các nguồn...")
 
-    # ── RSS trước (nhanh + date chuẩn) ──
     rss_sources = [
         ("VnExpress RSS", crawl_vnexpress_rss),
         ("Sức khỏe RSS", crawl_suckhoe_rss),
@@ -181,11 +160,10 @@ def crawl_all_links() -> list[dict]:
         try:
             items = func()
             all_items.extend(items)
-            print(f"  ✅ {name}: {len(items)} links")
+            print(f"  {name}: {len(items)} links")
         except Exception as e:
-            print(f"  ❌ {name}: {e}")
+            print(f"  {name}: {e}")
 
-    # ── Search page ──
     search_sources = [
         ("VnExpress", crawl_vnexpress, ALL_KEYWORDS, 5),
         ("DanTri", crawl_dantri, ALL_KEYWORDS, 5),
@@ -196,7 +174,7 @@ def crawl_all_links() -> list[dict]:
     ]
 
     for src_name, func, kw_set, pages in search_sources:
-        print(f"\n  📡 {src_name} ({len(kw_set)} keywords × {pages} pages)...")
+        print(f"\n  {src_name} ({len(kw_set)} keywords × {pages} pages)...")
         src_count = 0
         for keyword in kw_set:
             try:
@@ -204,8 +182,8 @@ def crawl_all_links() -> list[dict]:
                 all_items.extend(items)
                 src_count += len(items)
             except Exception as e:
-                print(f"    ❌ '{keyword}': {e}")
-        print(f"  ✅ {src_name}: {src_count} links tổng")
+                print(f"    '{keyword}': {e}")
+        print(f"  {src_name}: {src_count} links tổng")
 
     return all_items
 
@@ -217,36 +195,28 @@ def deduplicate(items: list[dict]) -> list[dict]:
     return list(seen.values())
 
 
-# ========================
-# MAIN CRAWL LOGIC
-# ========================
-
-
 def main():
     print("\n" + "=" * 60)
     print(
         f"🔍 Bắt đầu thu thập dữ liệu — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
-    print(f"🤖 Bộ lọc AI: {get_filter_status()}")
-    print(f"⚡ Content workers: {CONTENT_WORKERS} luồng song song")
+    print(f"Bộ lọc AI: {get_filter_status()}")
+    print(f"Content workers: {CONTENT_WORKERS} luồng song song")
 
-    # Bước 1: Thu thập link
     all_items = crawl_all_links()
     all_items = deduplicate(all_items)
-    print(f"\n📦 Tổng link sau lọc trùng: {len(all_items)}")
+    print(f"\nTổng link sau lọc trùng: {len(all_items)}")
 
     if not all_items:
-        print("⚠️  Không có link nào, kết thúc chu kỳ.")
+        print("Không có link nào, kết thúc chu kỳ.")
         return
 
-    # Bước 2: Fetch content song song
-    print(f"\n⚡ Fetching content song song ({CONTENT_WORKERS} workers)...")
+    print(f"\nFetching content song song ({CONTENT_WORKERS} workers)...")
     t0 = time.time()
     all_items = get_contents_parallel(all_items, max_workers=CONTENT_WORKERS)
     elapsed = time.time() - t0
     print(f"   Hoàn thành trong {elapsed:.1f}s")
 
-    # Bước 3: Filter + lưu DB
     saved = 0
     skipped = 0
     failed = 0
@@ -268,30 +238,30 @@ def main():
 
         print(f"\n[{i + 1}/{total}] 🔗 {url[:80]}")
         if pub_at:
-            print(f"   📅 {pub_at}")
+            print(f"   {pub_at}")
 
         try:
             if not title or not content:
-                print("  ⚠️  Không có nội dung → bỏ qua")
+                print("  Không có nội dung → bỏ qua")
                 skipped += 1
                 continue
 
             if not is_valid_article(title, content):
-                print("  ⏭️  Không phải bài dịch bệnh VN → bỏ qua")
+                print("  ⏭Không phải bài dịch bệnh VN → bỏ qua")
                 skipped += 1
                 continue
 
             ai_result = classify_article(title, content)
             if not ai_result["is_relevant"]:
                 print(
-                    f"  🤖 AI loại: {ai_result.get('reason', 'không phù hợp')} "
+                    f"  AI loại: {ai_result.get('reason', 'không phù hợp')} "
                     f"(conf={ai_result.get('confidence', 0):.2f})"
                 )
                 skipped += 1
                 continue
 
             print(
-                f"  🤖 AI giữ: {ai_result.get('method')} | "
+                f"  AI giữ: {ai_result.get('method')} | "
                 f"{ai_result.get('category')} | "
                 f"{ai_result.get('primary_topic')} "
                 f"(conf={ai_result.get('confidence', 0):.2f})"
@@ -311,44 +281,40 @@ def main():
                 failed += 1
 
         except Exception as e:
-            print(f"  ❌ Lỗi xử lý: {e}")
+            print(f"  Lỗi xử lý: {e}")
             failed += 1
 
     print("\n" + "=" * 60)
-    print(f"✅ Lưu thành công : {saved}")
-    print(f"⏭️  Bỏ qua         : {skipped}")
-    print(f"❌ Thất bại        : {failed}")
+    print(f"Lưu thành công : {saved}")
+    print(f"⏭Bỏ qua         : {skipped}")
+    print(f"Thất bại        : {failed}")
     print(
-        f"📅 Có ngày đăng   : {date_found} / {total} ({100 * date_found // total if total else 0}%)"
+        f"Có ngày đăng   : {date_found} / {total} ({100 * date_found // total if total else 0}%)"
     )
-    print(f"📅 Thiếu ngày     : {date_missing}")
+    print(f"Thiếu ngày     : {date_missing}")
     print("=" * 60)
 
 
-# ========================
-# RUN SERVICE — tự động lặp theo schedule
-# ========================
-
 if __name__ == "__main__":
-    print("🚀 Crawler Service khởi động...")
-    print(f"⏱️  Chu kỳ cào: mỗi {CRAWL_INTERVAL_MIN} phút")
-    print(f"⚡ Số worker song song: {CONTENT_WORKERS}")
+    print("Crawler Service khởi động...")
+    print(f"Chu kỳ cào: mỗi {CRAWL_INTERVAL_MIN} phút")
+    print(f"Số worker song song: {CONTENT_WORKERS}")
     init_db()
 
     while True:
         start = time.time()
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"\n🚀 [{now}] Bắt đầu chu kỳ cào dữ liệu...")
+        print(f"\n[{now}] Bắt đầu chu kỳ cào dữ liệu...")
 
         try:
             main()
         except Exception as e:
-            print(f"❌ Lỗi nghiêm trọng trong chu kỳ: {e}")
+            print(f"Lỗi nghiêm trọng trong chu kỳ: {e}")
 
         elapsed_min = (time.time() - start) / 60
         wait_min = max(1, CRAWL_INTERVAL_MIN - elapsed_min)
 
         next_run = datetime.now().replace(microsecond=0)
-        print(f"\n⏱️  Chu kỳ hoàn thành trong {elapsed_min:.1f} phút.")
-        print(f"⏳ Nghỉ {wait_min:.1f} phút → chu kỳ tiếp theo lúc ~{next_run}\n")
+        print(f"\n Chu kỳ hoàn thành trong {elapsed_min:.1f} phút.")
+        print(f"Nghỉ {wait_min:.1f} phút → chu kỳ tiếp theo lúc ~{next_run}\n")
         time.sleep(wait_min * 60)

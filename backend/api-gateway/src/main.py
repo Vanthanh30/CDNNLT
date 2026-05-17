@@ -18,10 +18,6 @@ import requests
 from . import database
 
 
-# ============================================================
-# CONFIG
-# ============================================================
-
 BASE_DIR = Path(__file__).resolve().parents[2]
 REPORT_SERVICE_DIR = BASE_DIR / "report-service"
 
@@ -31,10 +27,6 @@ FORECAST_SERVICE_URL = os.getenv("FORECAST_SERVICE_URL", "http://localhost:8010"
 
 CHATBOT_SERVICE_URL = os.getenv("CHATBOT_SERVICE_URL", "http://localhost:8001/chat")
 
-
-# ============================================================
-# FASTAPI
-# ============================================================
 
 app = FastAPI(title="Disease Management API")
 
@@ -47,18 +39,8 @@ app.add_middleware(
 )
 
 
-# ============================================================
-# MODELS
-# ============================================================
-
-
 class ChatRequest(BaseModel):
     question: str
-
-
-# ============================================================
-# STARTUP
-# ============================================================
 
 
 @app.on_event("startup")
@@ -66,19 +48,9 @@ def startup_event():
     database.init_db()
 
 
-# ============================================================
-# ROOT
-# ============================================================
-
-
 @app.get("/")
 def root():
     return {"message": "Disease Management API is running"}
-
-
-# ============================================================
-# DASHBOARD + ARTICLES
-# ============================================================
 
 
 @app.get("/api/dashboard")
@@ -110,11 +82,6 @@ def filter_articles(
         risk_level=risk_level,
         limit=limit,
     )
-
-
-# ============================================================
-# MAP LOCATIONS
-# ============================================================
 
 
 @app.get("/locations")
@@ -201,11 +168,6 @@ def get_locations(hours: Optional[int] = None):
         conn.close()
 
 
-# ============================================================
-# REPORT SERVICE
-# ============================================================
-
-
 def _ensure_report_service_import_path():
     candidates = [
         REPORT_SERVICE_DIR / "src",
@@ -251,11 +213,6 @@ def download_monthly_report():
 @app.get("/api/report/weekly/download")
 def download_weekly_report():
     return _download_monthly_report()
-
-
-# ============================================================
-# FORECAST
-# ============================================================
 
 
 @app.get("/api/forecast")
@@ -328,11 +285,6 @@ def get_disease_forecasts(
         raise HTTPException(
             status_code=503, detail=f"Forecast service unavailable: {exc}"
         )
-
-
-# ============================================================
-# CHATBOT
-# ============================================================
 
 
 def serialize_rows(rows):

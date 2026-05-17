@@ -706,12 +706,6 @@ def analyze_data(rows):
         "articles": articles,
     }
 
-    # =========================
-
-
-# AGGREGATE QUERIES
-# =========================
-
 
 def get_disease_stats(start_date, end_date):
     conn = get_connection()
@@ -826,9 +820,6 @@ def get_risk_stats(start_date, end_date):
     return {r["risk_level"]: r["total"] for r in rows}
 
 
-# ========================
-# MAIN PDF GENERATOR
-# ========================
 def generate_pdf(
     ai_summary_text: str, stats: dict, start_date=None, end_date=None
 ) -> BytesIO:
@@ -897,9 +888,6 @@ def generate_pdf(
     return buffer
 
 
-# ========================
-# ENTRY POINT
-# ========================
 def generate_monthly_report():
     """Wrapper that fetches DB data and calls generate_pdf."""
     from database import get_articles_in_range, save_weekly_report
