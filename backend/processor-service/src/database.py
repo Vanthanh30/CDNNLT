@@ -5,12 +5,18 @@ import mysql.connector
 from mysql.connector import Error
 from datetime import date, datetime
 from mysql.connector import Error
+import os
+from pathlib import Path
+from dotenv import load_dotenv
 
-DB_HOST = "localhost"
-DB_PORT = 3306
-DB_USER = "root"
-DB_PASSWORD = "123456"
-DB_NAME = "disease_management"
+BASE_DIR = Path(__file__).resolve().parents[1]
+load_dotenv(BASE_DIR / ".env")
+
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = int(os.getenv("DB_PORT", 3306))
+DB_USER = os.getenv("DB_USER", "root")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "123456")
+DB_NAME = os.getenv("DB_NAME", "disease_management")
 
 
 def _get_valid_sets():

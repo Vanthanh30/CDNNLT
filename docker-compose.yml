@@ -4,60 +4,81 @@ services:
   db:
     image: mysql:8.0
     environment:
-      MYSQL_DATABASE: "disease_db"
-      MYSQL_ROOT_PASSWORD: "password"
+      MYSQL_DATABASE: "disease_management"
+      MYSQL_ROOT_PASSWORD: "123456"
     ports:
       - "3307:3306"
     volumes:
       - ./data/db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p123456"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   crawler:
     build: ./backend/crawler-service
     env_file:
-      - ./backend/report-service/.env
+      - ./backend/.env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   processor:
     build: ./backend/processor-service
     env_file:
-      - ./backend/report-service/.env
+      - ./backend/.env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+
+  report:
+    build: ./backend/report-service
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend/report-service/reports:/app/reports
+    depends_on:
+      db:
+        condition: service_healthy
 
   forecast:
     build: ./backend/forecast-service
     ports:
       - "8010:8010"
     env_file:
-      - ./backend/report-service/.env
+      - ./backend/.env
     volumes:
       - ./backend/forecast-service/models:/app/models
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   chatbot:
     build: ./backend/chatbot-service
     ports:
       - "8001:8000"
     env_file:
-      - ./backend/report-service/.env
+      - ./backend/.env
 
   api:
     build: ./backend/api-gateway
     ports:
       - "8000:8000"
     env_file:
-      - ./backend/report-service/.env
+      - ./backend/.env
     environment:
       FORECAST_SERVICE_URL: "http://forecast:8010"
       CHATBOT_SERVICE_URL: "http://chatbot:8000/chat"
-    volumes:
-      - ./backend/report-service:/app/report-service
     depends_on:
-      - db
-      - forecast
-      - chatbot
+      db:
+        condition: service_healthy
+      forecast:
+        condition: service_started
+      chatbot:
+        condition: service_started
+      report:
+        condition: service_started
 
   frontend:
     build: ./frontend
