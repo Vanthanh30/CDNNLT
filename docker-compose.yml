@@ -1,40 +1,63 @@
-version: "3.8"
+x-db-env: &db-env
+  DB_HOST: localhost
+  DB_PORT: 3306
+  DB_USER: root
+  DB_PASSWORD: "123456"
+  DB_NAME: disease_management
 
 services:
   db:
     image: mysql:8.0
     environment:
-      MYSQL_DATABASE: "disease_db"
-      MYSQL_ROOT_PASSWORD: "password"
+      MYSQL_DATABASE: disease_management
+      MYSQL_ROOT_PASSWORD: "123456"
     ports:
       - "3307:3306"
+      - "8000:8000"
+      - "8010:8010"
     volumes:
       - ./data/db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   crawler:
     build: ./backend/crawler-service
+    network_mode: "service:db"
     env_file:
       - ./backend/report-service/.env
+    environment:
+      <<: *db-env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   processor:
     build: ./backend/processor-service
+    network_mode: "service:db"
     env_file:
       - ./backend/report-service/.env
+    environment:
+      <<: *db-env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   forecast:
     build: ./backend/forecast-service
-    ports:
-      - "8010:8010"
+    network_mode: "service:db"
     env_file:
       - ./backend/report-service/.env
+    environment:
+      <<: *db-env
     volumes:
       - ./backend/forecast-service/models:/app/models
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   chatbot:
     build: ./backend/chatbot-service
@@ -42,29 +65,41 @@ services:
       - "8001:8000"
     env_file:
       - ./backend/report-service/.env
+      - ./backend/chatbot-service/.env
+    environment:
+      CHATBOT_OPENAI_MODEL: ${CHATBOT_OPENAI_MODEL:-gpt-4.1-mini}
 
   api:
     build: ./backend/api-gateway
-    ports:
-      - "8000:8000"
+    network_mode: "service:db"
     env_file:
       - ./backend/report-service/.env
     environment:
-      FORECAST_SERVICE_URL: "http://forecast:8010"
+      <<: *db-env
+      FORECAST_SERVICE_URL: "http://localhost:8010"
       CHATBOT_SERVICE_URL: "http://chatbot:8000/chat"
     volumes:
       - ./backend/report-service:/app/report-service
+      - ./backend/forecast-service:/app/forecast-service
     depends_on:
-      - db
-      - forecast
-      - chatbot
+      db:
+        condition: service_healthy
+      forecast:
+        condition: service_started
+      chatbot:
+        condition: service_started
 
   frontend:
     build: ./frontend
     ports:
       - "5174:5173"
+    environment:
+      VITE_API_BASE_URL: "http://localhost:8000"
+      VITE_CHAT_API_URL: "http://localhost:8000/api/chat"
+      VITE_FORECAST_API_URL: "http://localhost:8010"
     volumes:
       - ./frontend:/app
       - /app/node_modules
     depends_on:
-      - api
+      api:
+        condition: service_started
