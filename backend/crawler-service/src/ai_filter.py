@@ -24,19 +24,59 @@ MIN_CONFIDENCE = float(os.getenv("AI_FILTER_MIN_CONFIDENCE", "0.7"))
 
 
 DISEASE_TERMS = [
-    "dịch bệnh", "ổ dịch", "bùng phát", "ca nhiễm", "ca mắc", "ca tử vong",
-    "truyền nhiễm", "lây nhiễm", "virus", "vi khuẩn", "vi rút",
-    "sốt xuất huyết", "tay chân miệng", "sởi", "cúm", "covid-19",
-    "dịch tả", "bệnh dại", "đậu mùa khỉ", "bạch hầu", "ho gà",
-    "dịch tả lợn", "cúm gia cầm", "lở mồm long móng", "tai xanh",
-    "dịch hại", "sâu bệnh", "bệnh hại", "rầy nâu", "đạo ôn",
+    "dịch bệnh",
+    "ổ dịch",
+    "bùng phát",
+    "ca nhiễm",
+    "ca mắc",
+    "ca tử vong",
+    "truyền nhiễm",
+    "lây nhiễm",
+    "virus",
+    "vi khuẩn",
+    "vi rút",
+    "sốt xuất huyết",
+    "tay chân miệng",
+    "sởi",
+    "cúm",
+    "covid-19",
+    "dịch tả",
+    "bệnh dại",
+    "đậu mùa khỉ",
+    "bạch hầu",
+    "ho gà",
+    "dịch tả lợn",
+    "cúm gia cầm",
+    "lở mồm long móng",
+    "tai xanh",
+    "dịch hại",
+    "sâu bệnh",
+    "bệnh hại",
+    "rầy nâu",
+    "đạo ôn",
 ]
 
 ECONOMY_TERMS = [
-    "kinh tế", "thị trường", "giá cả", "giá heo", "giá lợn", "giá gạo",
-    "chứng khoán", "cổ phiếu", "doanh nghiệp", "lợi nhuận", "doanh thu",
-    "xuất khẩu", "nhập khẩu", "thương mại", "đầu tư", "du lịch",
-    "bất động sản", "ngân hàng", "lãi suất", "tăng trưởng",
+    "kinh tế",
+    "thị trường",
+    "giá cả",
+    "giá heo",
+    "giá lợn",
+    "giá gạo",
+    "chứng khoán",
+    "cổ phiếu",
+    "doanh nghiệp",
+    "lợi nhuận",
+    "doanh thu",
+    "xuất khẩu",
+    "nhập khẩu",
+    "thương mại",
+    "đầu tư",
+    "du lịch",
+    "bất động sản",
+    "ngân hàng",
+    "lãi suất",
+    "tăng trưởng",
 ]
 
 
@@ -62,7 +102,9 @@ def _fallback_classify(title: str, content: str) -> dict:
     has_disease = _has_any(text, DISEASE_TERMS)
     has_economy = _has_any(text, ECONOMY_TERMS)
 
-    is_relevant = has_disease and not (has_economy and text.find("dịch") > text.find("kinh tế"))
+    is_relevant = has_disease and not (
+        has_economy and text.find("dịch") > text.find("kinh tế")
+    )
     return {
         "is_relevant": is_relevant,
         "confidence": 0.75 if is_relevant else 0.8,
