@@ -182,7 +182,7 @@ const FloatingChat = ({ stats }) => {
     setTyping(true);
 
     try {
-      const response = await fetch("http://localhost:8000/api/chat", {
+      const response = await fetch("http://localhost:8001/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: newText.trim() }),
@@ -226,7 +226,7 @@ const FloatingChat = ({ stats }) => {
     setTyping(true);
 
     try {
-      const response = await fetch("http://localhost:8000/api/chat", {
+      const response = await fetch("http://localhost:8001/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: text }),
