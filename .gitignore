@@ -8,7 +8,7 @@ __pycache__/
 .env
 venv/
 env/
-
+*.joblib
 # Bỏ qua file rác của Hệ điều hành
 .DS_Store
 Thumbs.db
