@@ -15,12 +15,6 @@ DB_USER = "root"
 DB_PASSWORD = "123456"
 DB_NAME = "disease_management"
 
-DB_HOST = "localhost"
-DB_PORT = 3306
-DB_USER = "root"
-DB_PASSWORD = "123456"
-DB_NAME = "disease_management"
-
 
 # ── Import VALID sets từ nlp_engine để validate trước khi lưu DB ──
 def _get_valid_sets():
@@ -553,7 +547,7 @@ def save_processed_article(
 # ========================
 
 
-def get_all_processed_articles(limit: int = 100) -> list:
+def get_all_processed_articles(limit: int = None) -> list:
     conn = get_connection()
     if not conn:
         return []
