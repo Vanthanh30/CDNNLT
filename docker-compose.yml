@@ -11,7 +11,7 @@ services:
     volumes:
       - ./data/db:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p123456"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p123456" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -70,6 +70,7 @@ services:
     environment:
       FORECAST_SERVICE_URL: "http://forecast:8010"
       CHATBOT_SERVICE_URL: "http://chatbot:8000/chat"
+      REPORT_SERVICE_URL: "http://report:8000"
     depends_on:
       db:
         condition: service_healthy

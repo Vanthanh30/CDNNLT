@@ -1,5 +1,4 @@
 from datetime import date, datetime
-import sys
 import json
 import os
 import urllib.error
@@ -18,14 +17,11 @@ import requests
 from . import database
 
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-REPORT_SERVICE_DIR = BASE_DIR / "report-service"
-
-load_dotenv(REPORT_SERVICE_DIR / ".env")
+load_dotenv()
 
 FORECAST_SERVICE_URL = os.getenv("FORECAST_SERVICE_URL", "http://localhost:8010")
-
 CHATBOT_SERVICE_URL = os.getenv("CHATBOT_SERVICE_URL", "http://localhost:8001/chat")
+REPORT_SERVICE_URL = os.getenv("REPORT_SERVICE_URL", "http://localhost:8002")
 
 
 app = FastAPI(title="Disease Management API")
@@ -168,51 +164,54 @@ def get_locations(hours: Optional[int] = None):
         conn.close()
 
 
-def _ensure_report_service_import_path():
-    candidates = [
-        REPORT_SERVICE_DIR / "src",
-        Path("/app/report-service/src"),
-    ]
-
-    for path in candidates:
-        if path.exists():
-            path_str = str(path)
-
-            if path_str not in sys.path:
-                sys.path.insert(0, path_str)
-
-            return
-
-    raise HTTPException(status_code=503, detail="Report service code is not available")
-
-
-def _download_monthly_report():
-    _ensure_report_service_import_path()
-
-    from report_generator import generate_monthly_report
-
-    result = generate_monthly_report()
-
-    if not result:
-        return {"message": "Không có dữ liệu"}
-
-    pdf_buffer, filename = result
-
-    return StreamingResponse(
-        pdf_buffer,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
-
-
 @app.get("/api/report/monthly/download")
 def download_monthly_report():
-    return _download_monthly_report()
+    try:
+        response = requests.get(
+            f"{REPORT_SERVICE_URL}/report/monthly/download",
+            timeout=60,
+            stream=True,
+        )
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code, detail="Report service error"
+            )
+        return StreamingResponse(
+            response.iter_content(chunk_size=8192),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": response.headers.get(
+                    "Content-Disposition", "attachment; filename=report.pdf"
+                )
+            },
+        )
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=503, detail=f"Report service unavailable: {e}")
 
 
 @app.get("/api/report/weekly/download")
 def download_weekly_report():
-    return _download_monthly_report()
+    try:
+        response = requests.get(
+            f"{REPORT_SERVICE_URL}/report/weekly/download",
+            timeout=60,
+            stream=True,
+        )
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code, detail="Report service error"
+            )
+        return StreamingResponse(
+            response.iter_content(chunk_size=8192),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": response.headers.get(
+                    "Content-Disposition", "attachment; filename=report.pdf"
+                )
+            },
+        )
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=503, detail=f"Report service unavailable: {e}")
 
 
 @app.get("/api/forecast")

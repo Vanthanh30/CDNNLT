@@ -2,3 +2,5 @@ mysql-connector-python
 reportlab
 python-dotenv
 openai
+fastapi
+uvicorn

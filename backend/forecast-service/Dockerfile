@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -9,4 +9,4 @@ COPY . .
 
 ENV PYTHONPATH=/app/src
 
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8010"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8010", "--reload"]
