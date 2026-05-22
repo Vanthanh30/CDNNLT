@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { Bot, Send, X, Link as LinkIcon, Copy, Edit2 } from "lucide-react";
 import "./FloatingChat.css";
 
+const CHAT_ENDPOINT = "/api/chat";
+
 const MessageBubble = ({
   msg,
   onCopy,
@@ -182,7 +184,7 @@ const FloatingChat = ({ stats }) => {
     setTyping(true);
 
     try {
-      const response = await fetch("http://localhost:8001/chat", {
+      const response = await fetch(CHAT_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: newText.trim() }),
@@ -226,7 +228,7 @@ const FloatingChat = ({ stats }) => {
     setTyping(true);
 
     try {
-      const response = await fetch("http://localhost:8001/chat", {
+      const response = await fetch(CHAT_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: text }),

@@ -307,9 +307,6 @@ def serialize_rows(rows):
 def chat(request: ChatRequest):
     rows = database.search_chatbot_context(request.question, limit=5)
 
-    if not rows:
-        return {"answer": "Không tìm thấy dữ liệu phù hợp.", "sources": []}
-
     ai_answer = call_chatbot_service(request.question, rows)
 
     sources = []

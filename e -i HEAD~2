@@ -1,0 +1,65 @@
+[33m03d67a1[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/docker-compose[m[33m)[m update
+[33m3db7314[m update
+[33m9db5131[m[33m ([m[1;31morigin/feature/docker-compose[m[33m)[m code last_update
+[33m6d90080[m update
+[33m1151c93[m done docker
+[33ma7dbd3d[m[33m ([m[1;31morigin/feature/fe_merge[m[33m, [m[1;32mfeature/fe_merge[m[33m)[m .env
+[33meae9146[m update
+[33m4667778[m update
+[33m5e06b18[m update
+[33m11706ae[m update
+[33m2d7b2a1[m fix chat bot
+[33mbf4bffb[m update report
+[33m28d04aa[m Merge branch 'feature/export-reportPDF' into feature/fe_merge
+[33mdd40ddd[m[33m ([m[1;31morigin/feature/export-reportPDF[m[33m, [m[1;32mfeature/export-reportPDF[m[33m)[m fix bug new data
+[33m6c9ed12[m update
+[33mdddea7c[m Merge branch 'feature/forecast' into feature/fe_merge
+[33mab9cda2[m update
+[33mdec5c84[m[33m ([m[1;31morigin/feature/forecast[m[33m)[m update report
+[33mfeee992[m update chat
+[33m68baede[m update
+[33m8932a5f[m Merge branch 'DucThang-' into feature/fe_merge
+[33m3ca7bbe[m Merge branch 'feature/export-reportPDF' into feature/fe_merge
+[33m26258d4[m update
+[33m5107e25[m Merge branch 'feature/prediction' into feature/fe_merge
+[33ma08b726[m[33m ([m[1;32mfeature/prediction[m[33m)[m feature prediction
+[33m743dd78[m update
+[33m66c66f1[m Merge branch 'feature/new_fe_codeupdate' into feature/fe_merge
+[33m398de67[m[33m ([m[1;31morigin/feature/new_fe_codeupdate[m[33m, [m[1;32mfeature/new_fe_codeupdate[m[33m)[m update
+[33m963a631[m[33m ([m[1;31morigin/feature/chat[m[33m, [m[1;32mfeature/chat[m[33m)[m update PanelReport
+[33m7279d6d[m Merge branch 'feature/crawl-data' into feature/new_fe_codeupdate
+[33m517f23d[m[33m ([m[1;32mfeature/crawl-data[m[33m)[m Merge branch 'feature/crawl-data' of https://github.com/Vanthanh30/CDNNLT into feature/crawl-data
+[33m88794e6[m update
+[33m36bbe31[m Merge branch 'feature/crawl-data' into feature/new_fe_codeupdate
+[33m8163f50[m[33m ([m[1;31morigin/feature/crawl-data[m[33m)[m update crawler
+[33m272b4c3[m update report with AI
+[33m755b504[m code update
+[33me64ad4c[m clean data of vanthang
+[33m6348e1c[m update
+[33mf3dd29e[m Merge branch 'feature/fix-clean' into feature/new_fe_codeupdate
+[33m5e2c0ce[m[33m ([m[1;31morigin/feature/fix-clean[m[33m, [m[1;32mfeature/fix-clean[m[33m)[m fix clean data
+[33m7c4b6de[m[33m ([m[1;31morigin/DucThang-[m[33m, [m[1;32mDucThang-[m[33m)[m fix api chat bot
+[33m95e09ac[m update fe
+[33m23579bb[m Merge branch 'feature/new_fe_codeupdate' into feature/chat
+[33m7c79878[m update chat
+[33m5bd9baf[m update code
+[33m232e894[m code update
+[33m73e877f[m init
+[33m990e3ae[m Merge branch 'feature/report' into feature/chat
+[33m7c5d8a0[m update chat
+[33m49c84e6[m[33m ([m[1;31morigin/feature/report[m[33m, [m[1;32mfeature/report[m[33m)[m update code
+[33m9522283[m update
+[33m417b634[m Merge branch 'feature/export-reportPDF' into feature/report
+[33m99a5878[m update data
+[33m507b6c2[m init
+[33m1ea8159[m fix bug save db
+[33m6f8b8e9[m fix format PDF and structure of report-service
+[33m4f94190[m Merge remote-tracking branch 'origin/feature/export-reportPDF' into DucThang-
+[33m8c9f478[m Chatbot
+[33m9429ab8[m add feature export report PDF
+[33m4a2dcc2[m done chat bot
+[33me2b0759[m Merge remote-tracking branch 'origin/feature/clean-data' into DucThang-
+[33ma8f2a76[m[33m ([m[1;31morigin/feature/clean-data[m[33m, [m[1;32mfeature/clean-data[m[33m)[m clean data
+[33m48ade61[m Clean data
+[33md90169c[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Done API Filter
+[33ma690d08[m[33m ([m[1;32mmain[m[33m)[m Initial commit
